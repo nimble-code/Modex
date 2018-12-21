@@ -1,0 +1,13 @@
+## fig. 5
+%X -p user
+%X -e lock
+%X -e unlock
+%P
+init {
+	atomic {
+		run p_user(1);
+		run p_user(2)
+	}
+}
+%G
+shortest: 1

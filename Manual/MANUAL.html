@@ -1,0 +1,1951 @@
+<html>
+<head>
+<title>Modex 2.6 User Guide</title>
+</head>
+<body>
+<font face=helvetica,arial>
+<font color=red><h3>Modex 2.6 User Guide</h3></font>
+<table width=100%>
+<tr><td width=10%> </td><td width=80%>
+Modex is a tool that can simplify the formal verification of
+concurrent or multi-threaded software that is written in the
+C programming language.
+This manual is meant to be read as a first introduction to the
+tool and to the methodology on which it is based.
+<p>
+We begin with a brief explanation of the need for a tool that can trap
+concurrency related errors, followed by an overview of Modex's basic mode of
+operation. The main theme introduced here, and that will return throughout
+this document, is the definition of a <i>Modex verification test harness</i>,
+which we will just refer to as a <i>test harness</i> from here on.
+The working of  Modex is determined by the test harness definition.
+Learning to use Modex, therefore, means learning to design and debug
+relatively simple test harness descriptions.
+
+<ul>
+<li><a name=1 href="#I">Introduction</a>
+	<ul>
+	<li><a name=1 href="#L">Some Limitations</a>
+	<li><a name=1 href="#O1">Overview</a>
+	</ul>
+<li><a name=1 href="#H">How Modex Works</a>
+	<ul>
+	<li><a name=1 href="#P">Process Communication</a>
+	<li><a name=1 href="#A">Checking Assertions</a>
+	<li><a name=1 href="#U">Using Temporal Logic</a>
+	<li><a name=1 href="#D1">Defining Abstractions</a>
+	</ul>
+<li><a name=1 href="#T1">Trouble-Shooting
+	<ul>
+	<li><a name=1 href="#T2">Tracking down what happens</a>
+	<li><a name=1 href="#S3">Setting Up a Test-Harness</a>
+	<li><a name=1 href="#V">Vacuity Checking</a>
+	</ul>
+<li><a name=1 href="#O2">Overview of Test-Harness Commands
+	<ul>
+	<li>
+	<a name=1 href="#F0">%F</a>,
+	<a name=1 href="#X0">%X</a>,
+	<a name=1 href="#L0">%L</a>,
+	<a name=1 href="#H0">%H</a>,
+	<a name=1 href="#D0">%D</a>,
+	<a name=1 href="#B0">%B</a>,
+	<a name=1 href="#C0">%C</a>,
+	<a name=1 href="#P0">%P</a>,
+	<a name=1 href="#O0">%O</a>,
+	<a name=1 href="#Q0">%Q</a>
+	<a name=1 href="#R0">%R</a>
+	<a name=1 href="#T0">%T</a>
+	<a name=1 href="#G0">%G</a>
+	</ul>
+<li><a name=1 href="#S">Synopsis of All Modex Test Harness Commands</a>
+<li><a name=1 href="#R2">References</a>
+</ul>
+
+</td><td width=10%></tr></table>
+
+<h3><a name=I>Introduction</a></h3>
+
+<table width=100%><tr><td width=10%> </td><td width=80%>
+It is no secret that writing reliable code for concurrent systems applications can be
+very challenging.
+It is harder to write reliable multi-threaded code than it is to
+write sequential code, and even in sequential applications bugs
+often manage to escape scrutiny, no matter how talented or careful a programmer is.
+Euphemistically we call such bugs <i>residual software defects</i>. They are the
+bugs left for the end-user to find. Often these are harmless annoyances. But the
+potential for more dramatic failure is also there.
+<p>
+There are many techniques for evaluating code quality and for reducing the
+number of residual bugs: manual code walkthroughs, peer review, static source
+code analysis, and of course plain old unit and integration testing.
+There is no question that these methods work: they catch bugs, yet they are not perfect.
+Especially for multi-threaded code, conventional testing techniques have
+restrictions that limit the number of bugs that they can catch.
+This is sometimes called <i>the quality ceiling</i>
+that is imposed by standard testing techniques.
+<p>
+To test a piece of code, either in isolation or in a given context, a tester usually
+creates a <i>test harness</i>: special instrumentation that is used to efficiently and
+reproducibly adminster a series of tests and to evaluate the results. At least, this is the
+intent. The keyword here is <i>reproducibility</i>, and this is precisely what makes it hard
+to set up a reliable test harness for a concurrent, or multi-threaded, system with
+conventional techniques.
+<p>
+How can one get a logically or physically distributed system to perform reproducibly,
+even in the presence of errors?  A distributed system typically consists of a
+number of asynchronously executing processes or threads. The details of the
+process executions are determined by schedulers. Typically there is one independent
+process scheduler per host computer in the system. A tester can try to setup a test
+harness to verify that for any given input the system as a whole will generate the
+required output, but there is not always a deterministic relation between inputs and
+outputs in a system like this. The behavior can depend on subtle timings and
+non-reprodicible interleavings of events. It is hard to tell, at a sufficiently low level of
+granularity, precisely how process executions are interleaved in time. Yet this
+knowledge can be of critical importance in tracking down race conditions and timing errors.
+This is the fundamental problem of <i>limited observability</i> in conventional  testing.
+<p>
+A related problem is that even if the tester could know exactly how the process
+executions had to be interleaved in time to reproduce an error scenario,
+it is in general not possible to enforce such a schedule in a direct execution.
+This is the second fundamental problem in conventional testing: <i>limited controllability</i>.
+In a standard test environment, limited controllability and observability restrict the
+testers ability to thoroughly exsysterce a system. As a result, some of the most
+difficult to diagnose bugs can slip through the testing phase and hide as residual defects in
+production code, with at least the potential of striking at the least opportune moment.
+<p>
+In this document we explore an alternative way of checking distributed systems
+software that tries to avoid the limitations of conventional testing.
+We start with a simple example.
+
+<pre>
+	int shared = 0;
+	int *ptr;
+
+	void
+	thread1(void)
+	{       int tmp;
+	        ptr = &shared;
+	        tmp = shared;
+	        tmp++;
+	        shared = tmp;
+	}
+
+	void
+	thread2(void)
+	{       int tmp;
+	        if (ptr)
+	        {       tmp = shared;
+	                tmp++;
+	                shared = tmp;
+	                assert(shared == 1);
+	        }
+	}
+
+	FIGURE 1. A Simple Threads Example (threads.c)
+</pre>
+
+Consider the C program fragment shown in Figure 1.
+The fragment defines the code for two concurrent threads of execution,
+named <tt>thread1</tt> and <tt>thread2</tt>.
+The two threads share access to an integer data object named <tt>shared</tt>,
+and each thread attempts to increment the value of this shared object by one.
+If the second thread reaches its <tt>assert</tt> statement before the first thread
+performs its increment operation, then the assertion will be true,
+but if the first thread is faster, the assertion
+will be false. In a conventional test environment, the test could be executed many
+times, and pass each time. The standard metrics of full code and branch
+coverage fail when applied in a situation like this. There is no good way to make
+sure that sufficient tests were done to rule out the possibility of a race condition in
+the code that could jeopardize its validity. It is easy to see in this case that there is
+at least one execution that will make the assertion fail. Is there a way to guarantee
+that such executions can be detected reliably during system verification?
+<p>
+If we submit this piece of code to a front-end script for the Modex tool,
+called <i>verify</i>, which uses the small test harness file shown in Figure 3
+that we will discuss shortly, the output is as shown in Figure 2.
+Modex generates an execution trace through the code, showing a columnated
+interleaving of the statements that are executed by the two threads, leading to an
+assertion violation: clear proof that such a violation is possible.
+
+<pre>
+	$ verify threads.c
+	Extract Model:
+	==============
+	...
+	Compile and Run:
+	================
+	...
+	pan:1: c_code line 24 precondition false: (now.shared==1) (at depth 8)
+	...
+	Error Found:
+	============
+	1: thread1(0):[ now.ptr=&(now.shared); ]
+	2:              thread2(1):[ now.ptr ]
+	3: thread1(0):[ Pthread1->tmp=now.shared; ]
+	4: thread1(0):[ Pthread1->tmp++; ]
+	5: thread1(0):[ now.shared=Pthread1->tmp; ]
+	6:              thread2(1):[ Pthread1->tmp=now.shared; ]
+	7:              thread2(1):[ Pthread1->tmp++; ]
+	8:              thread2(1):[ now.shared=Pthread1->tmp; ]
+	pan: precondition false: (now.shared==1)
+	...
+	$
+	
+	FIGURE 2. Sample Analysis of the Threads Example
+</pre>
+
+The scenario that is generated begins with the execution of a step in <tt>thread1</tt>
+followed by a step in <tt>thread2</tt>, three consecutive in <tt>thread1</tt> and then
+finally three steps in <tt>thread2</tt>.
+At the last step the value of variable <tt>shared</tt> is equal to two, not
+one, and the assertion fails. This is of course not the only possible execution that
+would lead to the assertion failure, but one example execution suffices to show that the
+problem exists.
+<p>
+A few other  points are worth observing.
+First note that the statements that appear in the trace look different than
+in the original code.
+Local data in <tt>thread1</tt>, for instance, is prefixed with a structure reference
+<tt>Pthread1-></tt>, or <tt>Pthread2-></tt>, and global data is prefixed with <tt>now.</tt>.
+The names of the threads also have a number added to them in parentheses.
+The number is the process number (the pid) that Modex assigns to the concurrent
+process threads. The offending sequence is printed by a program <tt>pan</tt> that
+is generated, compiled, and invoked by Modex to perform its test for this code.
+The reasons for all these peculiarities will become clear shortly.
+<p>
+Modex can determine reliably if there is any system execution that could cause the
+failure of assertions that are part of the program text. There are three basic types
+of assertions that can be checked, of which the one from the threads program is
+the most basic one (and the one that most programmers are familiar with already).
+More details on these and the other types of assertions can be found in the section
+on <a name=1 href="#A"><i>Checking Assertions</i></a>.
+<p>
+There are also other types of properties that Modex can check for all code that it
+instruments for a check. These include:
+
+<ul>
+<li>Indexing errors for statically allocated arrays.
+<li>Pointer dereferencing errors (null pointers).
+<li>The existence of non-progress cycles (starvation loops or live-locks)
+<li>The existence of reachable system deadlocks (invalid terminations).
+<li>Violations of general properties expressed in temporal logic.
+</ul>
+
+Beyond this, Modex can also check omega-regular properties (which
+include linear temporal logic properties as a subset), but such
+power is rarely needed in software verification.
+
+<h4><a name=L>Some Limitations</a></h4>
+
+The Modex system is designed to check <i>logical</i> or <i>functional</i>
+system properties in multi-threaded C code as efficiently as possible.
+Modex cannot be used to check <i>performance</i> related issues.
+<p>
+The Modex system targets the verification of <i>multi-threaded</i>
+software systems, written in the C programming language.
+In some cases it can be also used for checking basic computational
+properties of sequential code, but that's not where its strength lies.
+It would, for instance, not be very good at checking that a square-root routine
+always functions as advertised, or that a sorting algorithm is implemented correctly.
+It is, however, very good at diagnosing a broad class of concurrency
+related problems, including race conditions and system deadlocks.
+<p>
+It is possible to link seperately compiled code into a Modex
+test harness. These code segments can define system routines and test drivers
+that can be employed as atomic modules in the test system. The most thorough
+types of checks that Modex can do, however, rely on its ability to convert C
+code into verification models.
+There is currently no support for model extraction from code
+written in languages other than C.
+<p>
+Modex uses the logic model checker <i>Spin</i> as a background tool to perform
+the actual verifications.
+Spin generates an application specific verifier from either hand-written models
+or from the models produced by Modex. Modex then compiles this code in te background
+with a regular C-compiler and executes it to find the bugs.
+<p>
+Although detailed knowledge of model-checking techniques is not required to use
+Modex, some knowledge of model checking tools can be helpful in setting up more
+complex tests or in diagnosing  problems. The
+user who is familiar with the use of Spin can be at an advantage here.
+The principles of model checking, and the standard use of
+Spin is described elsewhere (see for instance [H97] in the reference section).
+<p>
+Function calls in the C code are modeled in a particular way that can impose
+a restriction in uncommon cases. One syntactic restriction that may
+disappear at some cases is that the model extractor does not always know
+how to deal with function calls that appear deep inside the conditional expression
+of an <tt>if</tt>, <tt>while</tt>, or <tt>for</tt> loop. In those cases you
+can help the model extractor by moving the function call before the test,
+for instance as in:
+<pre>
+	before:  if (f()) { ... }
+	after:   tmp = f(); if (tmp) { ... }
+</pre>
+Another restriction that is similarly easy to circumvent is that the model
+extractor assumes that no functions can be called simultaneously by
+<i>different</i> threads or processes in the system.
+(Nothing will actually go wrong if this still happens,
+but the verifier will then merely not explore the potential side-effects of
+an <i>interleaved</i> execution of multiple simultaneous calls to
+the <i>same</i> function by different threads.)
+To tell modex that 3 concurrent and interleaved executions should be
+considered, rather than 1, call modex with parameter <tt>-N3</tt>.
+<br>
+Finally, modex recognizes some, but likely not all possible ways to start
+threads or to fork processes -- those cases are best handled explicitly with
+the available primitives that modex provides, as illustrated in the examples.
+
+<h4><a name=O1>Overview</a></h4>
+
+We begin with an overview of the basic working of Modex, followed by an example
+that shows in more detail what steps are generally needed to
+perform a systems check. As noted, the definition of a test harness takes
+a central place. We first explain some of the default assumptions that
+Modex makes in the absence of a test harness specification.
+We then review the role of the test harness in defining reproducible
+tests in more detail, expecially with respect to:
+
+<ul>
+<li>process control,
+<li>inter-process communications, and
+<li>the tracking of state information.
+</ul>
+
+After this we review the types of properties that Modex can check for
+concurrent systems code.
+<p>
+For complex applications, the setup of a Modex test can sometimes be simplified if
+the source code is given a preferred structure. We discuss that structure in the next
+part of this document and present an example.
+<p>
+Next, we present some guidance in troubleshooting test harness definitions,
+explaining in more detail  what Modex does and how all the pieces fit together.
+<p>
+We conclude with a reference section,
+reviewing the main components of a test harness definition,
+covering all commands and controls that can be used.
+</td><td width=10%> </td></tr></table>
+
+<h3><a name=H>How Modex Works</a></h3>
+
+<table width=100%><tr><td width=10%> </td><td width=80%>
+Modex can be used to build a verification context that
+consists of three main elements:
+
+<ul>
+<li>user-defined test-drivers,
+<li><i>native</i> source code fragments (used <i>as is</i> without model extraction), and
+<li><i>instrumented</i> source code fragments, extracted from from the source code.
+</ul>
+
+Not all these elements need to be present in every test harness definition.
+A test harness, for instance, could be defined to link user-defined test drivers to
+unmodified source code fragments, to drive the code through a series of tests.
+Generally, though, greater control over a test can be obtained by using Modex to
+extract models from (to <i>instrument</i>) critical portions of the code.
+The instrumentation serves two purposes:
+
+<ul>
+<li>It allows Modex to insert extra assertions into the code that can trap
+common types of errors, such as out-of-bound array indexing and null-pointer
+dereferencing.
+
+<li>It allows the model checker that is used in the background (Spin) to
+control the interleaving of asynchronous
+process executions in such a way that relevant interleaving patterns can
+be enforced systematically and checked.
+</ul>
+
+The instrumentation, therefore, can secure both observability
+and the controllability of critical pieces of code.
+<p>
+The level of granularity at which test instrumentation is performed is under
+user control, giving the user considerable freedom in determining the scope and
+thoroughness of a system test.
+<p>
+The models Modex can extract from user-selected portions of the
+source code are largely functional replicas of the original code,
+represented in the language of the model checker that is used in the background.
+For more advanced use, Modex allows for the definition of optional filters
+that can be used to simplify or abstract
+the version of the code that is going to be checked, for instance by systematically
+suppressing details that are not relevant to the test at hand. By suppressing
+detail, the complexity of a check can be reduced.
+<ul>
+By defining abstractions as filters, the version of the code that is verified can be
+tuned without the need for modification of the original source. The modifications
+are made during the model extraction process, leaving the original source code
+untouched. Almost all changes that might be needed to perform a verification can be
+defined through user-defined filters, which can be defined in the test harness and
+automatically applied during model extractions.
+</ul>
+As noted, the use of a filter is optional. It can be used to speed up a
+software test, or to increase its coverage. There is one case, though where the use of
+a filter is required, and that is to <i>lift</i> operations that concern <i>process-control</i>,
+<i>thread-control</i> and <i>inter-process communications</i>.
+In these cases, the filters can be used
+to convert C-versions of these operations into equivalents that are executed
+under the control of the model checker. Below we sometimes also refer to the
+filters as <i>mapping tables</i>, <i>lookup tables</i>, or <i>abstractions</i>.
+These terms all refer to the same mechanism that can be used to control model extractions.
+<p>
+Process control operations include, for instance, process or thread <i>instantiation</i>,
+<i>suspenstion</i>, and <i>termination</i>.
+In the threads example that we saw before there were no explicit
+thread control operations.
+Through definitions in the test harness the user can
+determine how many threads there are, which code fragments they execute, when
+they are suspended and released, how they interact, and when they terminate.
+<p>
+The strength of Modex lies in its support for model extraction and for defining a
+reproducible test environment for concurrent code, including all the required process
+control operations. As noted, though, not all of the source code of an application
+will generally need to be instrumented. In typical cases, verification
+models are extracted from only a small piece of an application. The remainder of
+the code can be linked to the generated test system and executed <i>as is</i>.
+<p>
+By choosing which parts of an application are instrumented and which parts are run
+without instrumentation, the user can trade-off the scope and cost of checks. As a
+rule of thumb: purely deterministic, and sequentially executing code, that contains
+no access to shared data, no interprocess communications, and no process or
+thread control actions, need not be instrumented and can be run as is. Other code
+should be instrumented through model extraction. The latter is often a
+relatively small portion of an application, and it can often be made even smaller
+by structuring the code in a canonical way.
+
+<pre>
+	$ cat threads.prx
+	%X -x
+	$
+	
+	FIGURE 3. Complete Configuration File for the Threads Example.
+</pre>
+
+In the threads example, we invoked the Modex command with a test harness definition
+consisting of just a single line, shown in Figure 3. A test harness specification is fully
+defined in a file with the extension <tt>.prx</tt>.  Most parts of a <tt>.prx</tt>
+file have sensible defaults, which means that not all parts always need to be specified.
+<p>
+In this case, the specification contains just one command,
+identified by a command prefix.
+A command prefix always starts with a percent sign (%) in the left margin,
+and is followed by a unique letter.
+There are about ten such commands predefined. Only one appears in this example.
+<p>
+<tt>%X</tt> is a single-line command, with the
+parameter to the command placed on the same line as the command name itself.
+There are also multi-line commands, where the details for the command
+follow on separate lines. We discuss examples of those later.
+<p>
+<table>
+<!--
+<tr><td valign=top width=30><tt>%F</tt></td><td valing=top>
+Identifies a single C-source file that will be the target
+of subsequent model extraction commands (discussed next).
+There can be multiple <tt>%F</tt> commands, each followed by one or more <tt>%X</tt>
+commands. In the absence an explicit <tt>%F</tt> command, the default target
+C-source file is assumed to be the name of the test harness file with the
+extension <tt>.prx</tt> replace with <tt>.c</tt>.
+So in the default target for <tt>threads.prx</tt> is <tt>threads.c</tt>,
+and vice versa, the default test harness for <tt>threads.c</tt> is understood
+to be <tt>threads.prx</tt>. (This means that the first line in the <tt>threads.prx</tt>
+file could also be omitted, leaving just a single command.)
+<p>
+</td></tr>
+-->
+<tr><td valign=top width=30><tt>%X</tt></td><td valign=top>
+Identifies one or more functions in the target C-source file from which
+Modex should extract a model to be used as part of the verification context being build.
+The <tt>%X</tt> command can take a number of different parameters that determine the
+precise way in which model extraction will be performed.
+The <tt>-x</tt> parameter used here tells Modex to extract models from <i>all</i>
+functions that appear in the target C-source file.
+By default the functions are extracted from a C source file that has the same
+basename as the test harness file.
+</td></tr></table>
+<p>
+
+The Modex test harness is used to specify the details of a system test. All the test
+harness specifications are stored in a single configuration file with suffix <tt>.prx</tt>,
+with each command in that file dealing with a different aspect of the verification context.
+<p>
+The test harness defines which processes should be part of the verification, how they
+interact, and what code they execute. In a typical work-flow, the user starts with
+some fairly basic assumptions about the test system, and refines it step by step
+into a more sophisticated test harness, guided by the responses from the
+model extractor, the model checker, and the C compiler. Each of the
+background tools is invoked at various points in the process to verify the validity
+of the code that is being generated.
+<p>
+A test harness generally defines:
+<ul>
+<li>
+<i>Which processes are part of the test system, and where their definition is to
+be obtained:</i> from source code via the model extraction engine, from
+user-defined test drivers expressed in the specification language
+of the model checker (Promela), or from un-instrumented C code.
+<p>
+<li>
+<i>How these processes communicate:</i> Typically we will replace the generic
+process communication mechanism from the source code with a special
+purpose mechanism that is used within the test harness. It would, for
+instance, needlessly introduce processing overhead if the processes were
+to communicate via socket connections over a real network. A more efficient
+test can be created by replacing that mechanism with an internal
+mechanism for passing data through shared buffers. The user can choose
+here to define the send and receive operations directly in C, or to use
+the builtin message passing primitives from the model checker.
+<p>
+<li>
+<i>Which data objects together define the <i>control state</i> of the system under
+test.</i> State information typically includes any data object that must persist
+across different calls of the event processing loop (or its equivalent).
+Temporary data, or unchanging configuration data, typically does not contain
+persistent state information. When model extraction is used, Modex can
+determine which data objects hold state information, and include them in
+the test system. For code that is outside the pervue of the model extractor,
+though, it is the user's reserponsibility to identify the relevant data objects and
+to setup tracking for these in the test harness.
+</ul>
+<p>
+We now take a closer look at some of these issues with the help of examples.
+We start with a closer look at <i>process control</i>: a central issue in
+any verification.
+<p>
+The determination of the number of concurrent processes, the
+code they execute, and their point of instantiation, can be decided in a
+segment of a test harness that we have not discussed yet:
+a so-called <tt>%P</tt> segment.
+<p>
+In the simple threads example from before, two concurrent processes were generated
+by Modex, one for each routine that appeared in the source code, and both are
+by default included in the test.
+In general, we may need more control in determining which processes
+are part of the test system and what code they execute. In many cases, the
+code to be executed will be found in the source code of the application, but rarely
+will <i>all</i> of the source code of an application be required for a meaningful test.
+Some code can be stubbed, for instance if it interacts with remote systems or processes,
+or relies on hardware interfaces. We can replace such code with our own test drivers
+that simulate the possible responses in a controlled manner. Other code fragments
+may perform routine computational functions that do not involve
+concurrency or externally visible operations. Such code need not be under the
+control of Modex, but can be invoked from external code via procedure calls.
+Modex needs to control only the main threads of concurrency and to monitor possible
+process interactions.
+<p>
+A <tt>%P</tt> segment of the test harness, if present, can include declarations of processes
+that are not defined in the source code itself, e.g. as test drivers that simulate
+parts of the environment in which the system is to be tested. Such test drivers
+can simulate, for instance, user input, file system operations, hardware responses.
+Through the systematic use of user-defined test drivers we can decouple the test
+system from components over which a tester would otherwise have no direct control
+In this way we can make all system tests we perform fully reproducible. This
+process is often <i>closing</i> the system to its environment, to build a standalone
+test system.
+The big advantage of specifying test drivers in a <tt>%P</tt> segment is that we
+can directly exploit <i>non-determinism</i>, by using Spin's meta-language.
+<p>
+A <tt>%P</tt> segment does not include definitions for parts of the source code that
+are to be used in their original form. If, for instance, a call on function that is
+defined in the original source appears within a test driver, then the assumption
+is that this fragment of source code will be linked with the test system. We will
+describe later how this can be done.
+<p>
+<pre>
+	int x, y;
+
+	int
+	lock(int Pid)
+	{
+		x = Pid;
+		if (y != 0 && y != Pid)
+			return 0;	/* fail */
+		y = Pid;
+		if (x != Pid)
+			return 0;	/* fail */
+		return 1;		/* success */
+	}
+
+	void
+	unlock()
+	{	x = 0;
+		y = 0;	/* reset */
+	}
+
+	FIGURE 4. Flawed Mutual Exclusion Algorithm, file mutex.c
+</pre>
+<p>
+As a small example of the development of a test harness, let us look at the,
+flawed, algorithm for setting and releasing mutual exclusion locks, shown in
+Figure 4. No code is shown for user processes that might try to
+use the lock and unlock routine from this example yet. We need these to
+exercise the code in any type of test of course, including a formal verification.
+We have the option of defining the test routines completely inside the <tt>.prx</tt>
+configuration file, or we can add them to the C code, and extract models from
+them as before. We can, for instance, add the following test code to file <tt>mutex.c</tt>.
+<pre>
+	int cnt;
+	
+	void
+	user(int Pid)
+	{
+		while (1)
+		{	lock(Pid);
+			cnt++;
+			assert(cnt == 1);
+			cnt--;
+			unlock();
+		}
+	}
+</pre>	
+<p>
+To define the configuration to be verified we clearly have to extract
+models from the three relevant functions <tt>lock</tt>, <tt>unlock</tt>,
+and <tt>user</tt>, but they each now plays a different role in the verification.
+The <tt>user</tt> function is meant to be executed as a thread of execution.
+We can extract it directly as an active process, but then we don't have an
+opportunity to pass it a parameter, which is important here.
+We can get around this by extracting the <tt>user</tt> function as a so-called
+<i>passive</i> proctype, which can then be instantiated separately.
+We do so with an <tt>%X -p</tt> command.
+The other two functions must be represented as
+<i>instrumented</i> (<i>extended</i>) functions, which we do with <tt>%X -e</tt> commands.
+To start up the two threads for the <tt>user</tt> function
+we now use a <tt>%P</tt> segment.
+This leads us to the test harness specification shown in Figure 5.
+<p>
+<pre>
+	%X -p user
+	%X -e lock
+	%X -e unlock
+	%P
+	init {
+		atomic {
+			run p_user(1)	// the promela process names are
+			run p_user(2)	// the function names with prefix p_
+		}
+	}
+	%%
+
+	FIGURE 5. Confuguration File mutex.prx
+</pre>
+<p>
+The syntax used in a <tt>%P</tt> segment is that of the specification
+language of the model checker Spin (ProMeLa or Process Meta-Language).
+The <tt>%P</tt> segment defines two thread instantiations of the <tt>user</tt> function
+(which is generated as a <tt>proctype</tt> named <tt>p_user</tt>),
+passing a different non-zero parameter value to each one.
+<p>
+If we run the verification, the model checker reports quickly that the assertion can be
+violated, meaning that the <tt>lock</tt> and <tt>unlock</tt> routines are indeed unreliable.
+The model checker generates an example execution, with one possible interleaving of
+the process executions that leads to this error.
+The first sequence found is not necessarily also the shortest. If we want to
+find a short sequence we can add an additional (multi-line) command in the configuration file:
+<pre>
+	%G
+	shortest: 1
+	%%
+</pre>
+The verification will then an error execution similar to the one shown in Figure 6.
+<p>
+<pre>
+	$ verify mutex.c
+	...
+	                user(1):[ now.x=Pp_user->Pid; ]
+	                user(1):[else]
+	user(0):[ now.x=Pp_user->Pid; ]
+	user(0):[else]
+	                user(1):[ now.y=Pp_user->Pid; ]
+	                user(1):[ (now.x!=Pp_user->Pid) ]
+	user(0):[ now.y=Pp_user->Pid; ]
+	user(0):[else]
+	                user(1):[ now.x=now.y=0; ]
+	                user(1):[ now.x=Pp_user->Pid; ]
+	                user(1):[else]
+	                user(1):[ now.y=Pp_user->Pid; ]
+	                user(1):[else]
+	                user(1):[cnt = (cnt+1)]
+	user(0):[cnt = (cnt+1)]
+	pan: error: assertion violated (cnt==1) (at depth 16)
+	$
+
+	FIGURE 6. Verification of mutex.c
+</pre>
+
+
+<h4><a name=P>Process Communication</a></h4>
+
+To take a closer look at the various ways in which we can capture inter-process
+communications, we'll consider another example. Figure 7 shows the
+state update routines for a sender and receiver process in the classic alternating
+bit protocol. We'll put both in an infinite loop, with the sender only terminating
+when no more data remains to be sent, but for simplicity we'll leave the
+receiver hanging around, ready to accept more data at any time.
+<p>
+<pre>
+	typedef struct Msg Msg;
+	struct Msg {
+		short seq;	/* sequence number  */
+		char  *cont;	/* message contents */
+	};
+	
+	void
+	abp_sender()
+	{	Msg m, ack;
+	
+		m.seq = 0;
+		ack.seq = 0;
+	
+		for (;;)
+		{	if (ack.seq == m.seq)
+			{	if (fetch_data(&m.cont))
+				{	m.seq = 1 - m.seq;
+				} else
+				{	break;	/* no more data: done */
+			}	}
+			send(m);
+			receive(&ack);
+		}
+	}
+	
+	void
+	abp_receiver()
+	{	Msg m, ack;
+		short expect = 1;
+	
+		for (;;)
+		{	receive(&m);	/* get new msg */
+			ack.seq  = m.seq;
+			send(ack);
+			if (m.seq == expect)
+			{	store_data(m.cont);
+				expect = 1 - expect;
+		}	}
+	}
+
+
+	FIGURE 7. Alternating Bit Protocol
+</pre>
+
+<p>
+The receiver performs a simple check on the validity of the incoming messages,
+and if the check is passed it stores the data.  The
+receiver acknowledges all messages received, valid or invalid, by returning an
+empty message with a copy of the sequence number from the incoming message
+back to the sender. The sender will only fetch a new message to send when
+it receives the correct acknowledgment, otherwise it resends the last message.
+The sender also will get things started, which we arrange for by making it
+seem as if it has the correct acknowledgement from an earlier message.
+<p>
+<pre>
+	%F abp.c
+	%X -L abp_snd.lut -a abp_sender
+	%X -L abp_rcv.lut -a abp_receiver
+	%L abp_snd
+	Declare	bit	s	abp_sender
+	fetch_data(...	true
+	send(m)		c_code { Pp_abp_sender->s = Pp_abp_sender->m.seq; }; \
+			qr!s
+	receive(...	qs?s; \
+			c_code { Pp_abp_sender->ack.seq = Pp_abp_sender->s; }
+	%%
+	%L abp_rcv
+	Declare	bit	s	abp_receiver
+	store_data(...	skip
+	send(ack)	c_code { Pp_abp_receiver->s = Pp_abp_receiver->ack.seq; }; \
+			qs!s
+	receive(...	qr?s; \
+			c_code { Pp_abp_receiver->m.seq = Pp_abp_receiver->s; }
+	%%
+	%P
+	chan qs = [0] of { bit };
+	chan qr = [0] of { bit };
+	%%
+
+	FIGURE 8. Test Harness for Sender and Receiver
+</pre>
+<p>
+A test harness we'll discuss for this application is shown in Figure 8.
+It is a little bit more involved than the earlier examples, mainly to illustrate
+some of the additional capabilities there are in Modex to influence the model
+extraction process.
+The initial part is now familiar. We start with an <tt>%F</tt> command to identify
+the source file used. If the code for the sender and the receiver would be located in
+different files, we'd have to identify each one with a separate <tt>%F</tt> command
+that immediately precedes the corresponding <tt>%X</tt> commands.
+We have two <tt>%X</tt> commands here, one for the sender and one for the receiver,
+and we specify a dedicated lookup table for each one.
+<p>
+We define the two <tt>%L</tt> segments, one for each process.
+In this case this isn't really needed, but the example shows how it is done.
+<p>
+We now want to map the send and receive operations into Promela equivalents, using
+a variable of type <tt>bit</tt> to store the sequence number.
+So the first thing to do is to declare that extra variable, that does not appear
+in the source code, as a modeling variable with a <tt>Declare</tt> statement.
+We do so in each of the two lookup tables.
+Next, we tackle the semantics of the <tt>fetch_data</tt> routine.
+For this verification attempt we assume that there will be an
+infinite stream of data to be transmitted, meaning that the <tt>fetch_data</tt> routine
+always returns a non-zero result (<tt>true</tt>).
+The working of the protocol itself furthermore is independent of the actual data
+that is being transmitted as payload in the messages, so we can ignore the generation
+and consumption of this payload data in the test framework.
+In the lookup table for the receiver, therefore, we can also replace the call on
+<tt>store_data</tt> with <tt>skip</tt>.
+The use of sequence numbers, however, is important and must be preserved.
+<p>
+A more interesting part of this test harness is the representation of the <tt>send</tt>
+and receive operations in the two processes. Long entries in the lookup table can
+be split across multiple lines, like macro definitions in C, by using a backslash as a
+continuation character at the end of a line. The send operations can be represented
+in C, in Promela, or some combination. Here we're using a combination
+of both, to illustrate how this works.
+<p>
+Two Promela channels are declared in a <tt>%P</tt> segment of the test harness
+(the <i>P</i> stands for <i>P</i>romela code). The
+channels are declared as rendezvous channels with a zero capacity. Using synchronous
+channels is often attractive in model checking applications, because it generally
+reduces the complexity of a verification. Since we can abstract from data
+contents, each message is given just one field of type <tt>bit</tt>, to store the sequence
+number. We can send and receive via these channels with the Promela primitives
+<tt>q!s</tt> and <tt>q?s</tt>, respectively, where <tt>q</tt> is the channel and <tt>s</tt>
+is the sequence number sent or received.
+<p>
+Now we have to resolve the problem that the data to be sent is in a C data
+structure that may not be representable in Promela (actually, in this case it can be
+represented with a structure definition in Promela, but in general this is not
+always the case). So, we copy the data from a C data object into a Promela data
+object with a <tt>c_code</tt> statement, and vice versa. Within <tt>c_code</tt> statements,
+the references to state variables have to be prefixed with either <tt>now.</tt>
+or <tt>Pp_procname-></tt>.
+In the case of the sender the prefix becomes <tt>Pp_abp_sender-></tt> for both the Promela
+object and the C structure reference.
+<p>
+Finally, the definition of what a <tt>Msg</tt> structure is must be made known to the verifier
+as well, because the send and receive routines rely on it. We do
+so here with a <tt>%D</tt> segment, as shown.
+<p>
+There are several things we could check for this implementation of the alternating
+bit protocol at this point. We could formally demonstrate the above observation
+about the required initial trigger for the transmission. We could check if it is
+possible for this system to reach a state from which no data will ever be accepted again,
+wether the system still has hidden deadlock or hangup states, etc. These features
+are best understood in the domain of model checking, so we will not discuss them
+in more detail here.
+
+<h4><a name=A>Checking Assertions</a></h4>
+
+All code that is part of a generated model will be checked for a
+number of basic properties.
+As it is generating models, Modex will insert a small number of basic assertions
+into the code. This happens, for instance, to protect array indexing operations
+(asserting that the index to be used will always be within the declared bounds of
+the array) and pointer derefencing operations (asserting that the pointer used
+cannot be nill).
+<p>
+Modex supports three types of assertions that the user can add to code:
+basic assertions, response assertions, and precedence assertions.
+
+<p>
+<ul>
+<li>
+A basic assertion has the form <tt>assert(expression)</tt>. Modex will check
+that the expression evaluates to true whenever the assertion statement is
+reached, in all feasible system executions.
+<li>
+A response assertion has the form <tt>assert_r(expression)</tt>. For a
+response assertion Modex checks that the expression evaluates to true
+<i>within a finite number of steps after</i> the assertion statement is reached,
+in all feasible system executions. The expression is required to
+become true in all system executions.
+<li>
+A precedence assertion has the form <tt>assert_p(expression1, expression2)</tt>
+For this type of assertion Modex checks that <tt>expression1</tt> is true
+each time this assertion is reached and remains true at
+least until <tt>expression2</tt>  becomes true.
+The second expression, however, is not <i>required</i> to become true.
+</ul>
+<p>
+For example, if the source code contains a statement
+<pre>
+	assert(x > y);
+</pre>
+then the test will include a check for the existence of any system execution for
+which this assertion can fail. 
+
+The other two types of assertions are not commonly found in regular C
+code. These two types of assertions can be used to verify some basic causality
+requirements on the system executions. For instance, a statement of the type
+<pre>
+	assert_r(x > y);
+</pre>
+states the requirement that within a finite number of steps after this statement is
+executed the condition specified in the argument should always become true.
+A statement of the type
+<pre>
+	assert_p(x < 10, x > y);
+</pre>
+states that the first expression will always true at the moment this assertion
+is executed, and will remain true until the second expression becomes true
+(which itself is not required to happen).
+
+<h4><a name=U>Using Temporal Logic</a></h4>
+Modex generates a model from the C code of an application that is checked for its
+logic properties by the model checker Spin. This means that any omega-regular property
+can be checked. Assertions and timeline property specifications cover only the
+most frequently needed types of requirements. Spin offers a range of other options
+for specifying correctness checking and for managing the complexity of large
+verification runs.
+
+<h4><a name=D1>Defining Abstractions</a></h4>
+The definition of abstractions is optional in Modex.
+For many applications, the default one-to-one mapping from C code statements
+to Promela statements that Spin can recognize will suffice.
+For larger applications, though, it can be very useful to be able to override
+the default and tell Modex precisely which statements in the original code
+can be ignored, or how other statements should be abstracted in the generated
+verification model. This is done through the use of the lookup, or mapping,
+tables, using <tt>%L</tt> commands.
+<p>
+Abstractions are always defined at the statement level, which means that
+you cannot directly define control-flow abstractions with this method.
+This, however, does not appear to be a restriction, and it has the benefit
+of significantly simplifying the model extraction process and the definition
+of abstractions. What abstractions are used is completely up to the user
+and is not restricted by the model extractor. For guidance and inspiration,
+check the set of examples of test harness definitions that comes with the
+standard Modex distribution.
+
+</td><td width=10%> </td></tr></table>
+
+<h3><a name=T1>Trouble-Shooting</a></h3>
+
+<table width=100%><tr><td width=10%> </td><td width=80%>
+
+Especially when first starting to develop a test harness, it is good to double-check
+how the commands given are interpreted. The simplest way of doing this is
+to look at the models that are generated.
+<p>
+The model extractor starts by preprocessing each C source file that is
+mentioned in a test harness <tt>%F</tt> command.  It calls the standard C
+preprocessor to do this. Since this is usually the first action that is executed,
+it is also the first thing that can fail.
+It can fail, for instance, if there are missing compiler directives, missing
+header files, syntax-errors in the C code, etc.
+The errors are often reported as appearing in a file with the
+extension <tt>.I</tt> which is  intermediate version of the source file
+that is generated by the model extractor.
+As a rule, first make sure that you can compile the C
+sources with the regular C compiler, before trying to extract models from them.
+The model extractor is a little more forgiving for certain types of omissions
+or errors, but it too has its limits of course.
+<p>
+The result of a successful preprocessing step is placed in a temporary file with extension
+<tt>.M</tt>, where future calls on the model extractor will look for it.
+(An intermediate version with extension <tt>.I</tt> is removed more quickly.)
+<p>
+Next, the model extractor will parse the preprocessed file to prepare for model
+extraction. Errors can be reported in this phase as well. The most common causes
+will be missing type declarations (caused by missing header files), syntax errors,
+etc. Missing information can be provided in <tt>%D</tt> segments. The extractor by default
+will try to ignore system header files, to avoid trapping lots of unnecessary data
+and declarations. In most cases this works well, but in some cases there are critical
+type declarations in the system header files that must be picked up. In those
+cases the model extractor can be forced to read and interpret all header files
+by calling it with option <tt>-z</tt>.
+<p>
+If all is well, the model extractor will generate a number of files with portions of the
+extracted code. The main file among these is a file with extension <tt>.drv</tt> (driver).
+Another file has extension <tt>.cln</tt> which is a script to
+cleanup (remove) all temporary files that were generated. The third file used has
+the extension <tt>.run</tt>, and it contains a script that can be executed to perform
+the actual verification.
+If the model extractor is invoked with the argument <tt>-run</tt> then this script
+will be called automatically as soon as the model extraction is completed.
+<p>
+Executing the run script will first cause another call on the preprocessor,
+this time to process the generated Promela code. This will expand the contents of
+the <tt>.drv</tt> file, and everything it refers to, into a single file named <tt>model</tt>.
+This will generally be the
+best place to look at what the model extractor actually generated from
+the test harness and the source files. 
+<p>
+Next, the model checker Spin called with the file <tt>model</tt> as its input.
+Clearly, Spin too can generate error reports if the code it finds is not to
+its liking. Causes could be bad entries in the lookup tables,
+missing declarations, missing <tt>Import</tt> commands in the test harness, etc.
+If it succeeds in parsing the model, Spin generates the verifier in a set
+of C source files named <tt>pan.[chmbpt]</tt>.
+<p>
+The <tt>pan.c</tt> file is now compiled with the standard C compiler. Again, errors can now
+reveal themselves if, for instance, the encapsulated C code is incorrect, if there are
+missing declarations etc. If you are familiar with the code in the pan files, looking
+at the data structures that are generated for each process and for the global
+state vector can sometimes be helpful in tracking down the cause of errors.
+In virtually all cases, though, errors uncovered in this step come down to omissions
+or mis-statements in
+the test harness, so ultimately this is where the errors will have to be repaired.
+<p>
+If compilation succeeds, we are not quite out of the woods yet. Also the execution
+of the model checking code can fail, with memory errors or core dumps. Bad code
+from the original source files, or bad replacement code from the lookup tables, will
+generally be the cause, which can be tracked down with standard debugging techniques.
+
+<h4><a name=T2>Tracking Down What Happens</a></h4>
+
+<pre>
+	void
+	main(void)
+	{
+		printf("hello world\n"); /* shows up in pan.m */
+	}
+
+	FIGURE 10. Hello World
+</pre>
+
+The precise effect of four of the test harness commands in particular
+<tt>%H %D %C</tt> and <tt>%P</tt> can be tricky.
+To see the effect of these four commands we can do a small experiment. 
+
+<pre>
+	%F hello.c
+	%X -x
+	%L
+	printf(...	keep
+	%%
+	%H
+	struct A { int foobar_t; };	/* shows up in dummy.M, but not in model */
+	%%
+	%D
+	typedef struct d_part {
+		int d_1;
+		char d_2;
+	} d_part;		/* shows up in pan.c before pan.h */
+	%%
+	%C
+	State c_part;		/* shows up in pan.c after pan.h */
+	%%
+	%P
+	int p_part;		/* shows up in pan.h inside state vector */
+	%%
+
+	FIGURE 11. Dummy Test Harness for Hello World Example
+</pre>
+
+We will use the standard "hello world" C program as our test input, illustrated in
+Figure 10, and setup a small test-harness, shown in Figure 11, with some simple
+declarations that will allow us to track down how elements of the test harness carry
+over into pieces of the model checking code that is generated.
+<p>
+To make it easier to see how the final model is composed, invoke Modex
+with the special <tt>-Y</tt> debugging command, which preserves all intermediate
+files so that we can inspect them.
+<pre>
+	$ modex -Y hello.c
+</pre>
+The model that is generated will look like this:
+<pre>
+	$ cat model
+
+	c_decl {
+		typedef d_part {
+	 		int d_1;
+	 		char d_2;
+		} d_part;
+	}
+
+	c_code {
+		State c_part;
+	}
+
+	int p_part;
+
+	active proctype main( )
+	{
+	     printf("hello world\n");
+	}
+	$
+</pre>
+We can already see various parts defined in the test harness show up here,
+such as the definition of <tt>d_part</tt>, <tt>c_part</tt>, and <tt>p_part</tt>.
+<p>
+The <tt>%X -x</tt> command in the test harness selects target <tt>main</tt>
+for model extraction. The <tt>%L</tt> segment  contains just one command,
+which is meant to override the default treatment of <tt>printf</tt> statements.
+Unless otherwise defined, the model extractor uses the default conversions
+shown in Figure 12.
+<p>
+<pre>
+	open(... 		comment
+	close(... 		comment
+	fflush(... 		comment
+	exit(... 		comment
+	fprintf(... 		comment
+	printf(... 		comment
+	write(... 		comment
+	fgets(... 		warn
+	fscanf(... 		warn
+	read(... 		warn
+	connect(... 		warn
+	socket(... 		warn
+	gethostbyname(... 	warn
+	getprotobyname(...	warn
+
+	FIGURE 12. Default Conversion Rules
+</pre>
+<p>
+Most POSIX file operations, except those that read data, are converted
+into comments. Operations that retrieve data from a file must be treated with
+some care, since their effect is not necessarily reversible, and modifies potentially
+relevant state information. The use of these operations within a procedure
+that is to be instrumented by the model checker will generate a warning.
+<p>
+In this case we want the <tt>printf</tt> statement preserved so that we can
+see where it ends up in the model checking code.
+<p>
+Spin takes the model generated by Modex and turns it into a C program.
+That program consists of the following set of files:
+<pre>
+	pan.h, which contains all header information, and data declarations,
+	pan.c, which contains the model checking procedures,
+	pan.m, which contains the code generated for each transition in the system,
+	pan.b, which records how the effect of each transition can be undone,
+	pan.t, which records the control flow structure for all generated process types.
+	pan.p, which contains code for supporting multi-core model checking runs
+</pre>
+As noted in Figure 10, we should expect the <tt>printf</tt> to show up as an
+entry in the large case-switch that is contained in the <tt>pan.m</tt> file.
+<p>
+<b>%H</b>
+The declaration of the <tt>typedef</tt>, given in the <tt>%H</tt> segment of the test
+harness, would at first seem to have disappeared, since it does not show up literally
+in any of the <tt>pan.?</tt> source files. It does appear in another file that is automatically
+created in the directory where the hello world example is stored though. This
+intermediate file has the extension <tt>.M</tt>, and contains the output of the
+preprocessing phase for the target source file.
+<p>
+If there are multiple target source files, then the results of preprocessing
+each file will be stored in a separate <tt>.M</tt>  file.
+The model extractor will not extract its model from the original <tt>.c</tt> file, but from
+the intermediate <tt>.M</tt> file that is created after all relevant include files
+are inlined and all macros are expanded.
+Before the model extractor starts, it always checks if there is already an
+<tt>.M</tt> file in the directory that is more recent than the <tt>.c</tt> file. If so, the model
+extractor will skip the preprocessing step and move straight on to the processing of
+the <tt>.M</tt> file.
+This can sometimes also have undesired consequences, for instance if a file
+that is included into the original source file is updated. The update may then be invisible to
+the model extractor, which will continue to work with the previously produced <tt>.M</tt>
+file, missing the update. If this happens, you can force the update by removing the <tt>.M</tt>
+file manually.
+<p>
+Our declaration for <tt>struct A</tt> appears at the top of
+the file <tt>dummy.M</tt> together with any other entries that
+could be specified in an <tt>%H</tt> segment (such a macro definitions).
+No preprocessing is done on these entries:
+they are copied literally into the <tt>.M</tt> file. In this case, the structure
+declaration would allow us to use declarations of this type elsewhere. This is
+not used here, so the declaration does not show up in the model itself.
+We can also use entries in the
+<tt>%H</tt> segment to rename data objects with macro definitions, etc. We can in this
+way make small changes to the original source code of an application without having
+to directly modify that code. The <tt>%H</tt> segment gives us a way to add small overrides
+into the code through definitions that are recorded in the test harness.
+<p>
+<b>%D</b>
+The declaration of the data <tt>d_part</tt> from the <tt>%D</tt> segment of the trial test
+harness is turned into a <tt>c_decl</tt> statement that will next
+show up in the main file <tt>pan.c</tt> <i>before</i> the point where the <tt>pan.h</tt>
+header file is included.
+This therefore gives us a way to introduce data types that can be refered to
+from within the state vector.
+<p>
+<b>%H vs %D</b>
+Declarations that are placed in the <tt>%H</tt> segment modify the source code of the
+application <i>before</i> model extraction takes place.
+Declarations placed in <tt>%D</tt>, <tt>%C</tt>, and <tt>%P</tt>
+segments modify the target code of the model checker <i>after</i> model
+extraction takes place.
+<p>
+<b>%D vs %C</b>
+The declaration of <tt>c_part</tt> from the <tt>%C</tt> segment is turned into
+a global <tt>c_code</tt> fragment, that shows up in the <tt>pan.c</tt> file <i>after</i>
+the point where <tt>pan.h</tt> is included.
+This gives us a way to refer to the state vector (State) itself,
+or to any other items that are included in the <tt>pan.h</tt> file,
+both in declarations and in C procedure definitions.
+From their relative placement in the code, the <tt>%D</tt> segment
+of the test harness is the logical place for data <b>D</b>eclarations,
+while the <tt>%C</tt> segment is the logical place for defining the
+body of <b>C</b> functions that are to become part of the verification system.
+<p>
+<b>%P</b>
+The declaration of the integer <tt>p_part</tt>, finally, become
+part of the generic model that is produced, and shows up inside the state vector
+itself, which is defined in the file <tt>pan.h</tt>. Note that the <tt>%P</tt> segment
+introduces Promela code, and therefore the declaration of <tt>p_part</tt> is treated as
+a global Promela object that is automatically declared as such, and that could be refered
+to from within C procedures under the extended name <tt>now.p_part</tt>.
+
+
+<h4><a name=S3>Setting Up a Test-Harness</a></h4>
+<p>
+The most challenging part of working with Modex is often in the initial definition of
+a test harness. Once the test harness is set up, there is relatively little
+maintenance to be done and things progress very fast.
+<p>
+When starting from scratch for a new software application, there are some guidelines
+that can be followed about the best way to proceed from step to step. 
+Below we will walk you through a series of manual steps that can be made from the
+command line to reproduce the main processing steps that Modex normally performs
+automatically in sequence. This is just for trouble-shooting purposes, or perhaps
+to explain in more detail all that happens behind the screen in a session with Modex.
+
+<p>
+To successfully complete a software test
+with Modex, we have to setup the test harness to take us passed a series of hurdles.
+Each step in the process can in principle fail, and generate an error message.
+By eliminating the causes of each error reported one by one, we can converge
+quickly on a usable test harness description.
+Below we discuss the main steps taken by Modex in a little more detail.
+<p>
+Note that all steps below can be executed automatically by Modex if you
+pass it the runtime option <tt>-run</tt>.
+
+<h4>Step 1</h4>
+The test harness file should define the C source files that are the
+target of the test, using one or more <tt>%F</tt> commands.
+The default for a missing <tt>%F</tt> command will be a C source file with
+the same basename as the <tt>.prx</tt> file.
+The test harness should also define the target procedures that will be
+included as asynchronous process threads, using one or more <tt>%X</tt> commands.
+Often some test drivers will be needed as well, together with a
+minimal infrastructure that is needed to expose the communication
+between the processes to the verification system and to <i>close</i> the system.
+This can be done in C code, as C functions that are then extracted
+as part of the final model, or it can be done in the test harness,
+as Promela processes.
+
+<h4>Step 2</h4>
+Next we should look at the definition of initial (or default) versions of the mapping tables for the
+<tt>%L</tt> segments in the test harness. To find out what the syntactic requirements for
+the entries in the mapping table are, we can let the model extractor generate all the
+required information for us. We can do so by calling the model extractor
+with the command:
+<pre>
+	$ modex -Y -k check.prx
+</pre>
+If this is the very first time that the model extractor is invoked for a new application,
+this may produce a series of parsing errors for the C source code that was specified
+as the target of the model extraction exercise. Don't worry too much about that at this
+stage. Errors could appear, for instance, if the source file presented isn't fully
+ISO-C compatible, or if some of C header-files used are missing on the system
+where the check is being done. We can make changes in the source by using the
+compiler directive <tt>MODEX</tt> to hide new segments from a real compilation for the
+executable version of the code. Do so by bracketing any additions to the code that
+are just meant to satisfy the model extractor with:
+<pre>
+	#ifdef MODEX
+		some declarations to satisfy the modex parser
+	#endif
+</pre>
+Once the parse errors disappear (or start looking harmless), look carefully at the
+files with the extension <tt>.lut</tt> or <tt>.nlut</tt> that were generated.
+These files contain the fully populated mapping tables for each target
+that target that was referenced in an <tt>%X</tt> command in
+the test harness, with all default conversion rules filled in.
+<p>
+We generally need to select and redefine only a small fraction of the entries in the
+default <tt>%L</tt> segments that are generated to setup a check, so do not be
+discouraged if this initial listing is long.
+The main purpose of the listing is to provide us with a precise spelling of the
+left-hand side entries from the source statements for which we may want to introduce
+a conversion rule in the mapping tables.
+
+<h4>Step 3</h4>
+Determine the desired selection for the <tt>%L</tt> segments in the test harness. Minimally
+you should redefine thread operations (mapping them to <tt>hide</tt>), process
+instantiations (using Promela operations to redefine them) and all send and
+receive operations (using the chosen conversions to represent them). You may need to pay
+attention to the handling of any parameter values that may be passed to a function
+upon thread initializations. Those values will have to be passed to the model
+version of the process in some other way, for instance via global variables, or by
+passing them as parameters in a message that is sent to the process over an internal channel.
+Once all this is done, make a first attempt to generate the full verification model.
+This is done by invoking modex without parameters:
+<pre>
+	$ modex check.prx
+</pre>
+Inspect the various parts of the model that are generated.
+
+<h4>Step 4</h4>
+Next, we can attempt to generate the model checking code itself from the model.
+We can do this with the command:
+<pre>
+	$ spin -a model		# using a reasonably recent version of spin
+</pre>
+At this point, we may get some parse errors from Spin. This can happen if the
+mapping tables are incomplete or contain errors, if not all declarations are in order,
+etc. It is usually not hard to find out where the complaints come from. Adjust the
+variable declarations using <tt>%D</tt> segments, check the declarations and tracking
+statements in the <tt>%L</tt> segments until all errors are fixed.
+
+<h4>Step 5</h4>
+Compile the code that Spin generated. This is the model checking code that can
+perform the check of the generated system. This can be
+done by invoking a standard C compiler, for instance gcc:
+<pre>
+	$ gcc -o pan pan.c
+</pre>
+We may get some more errors from the C compiler at this point.
+This can happen if the C code contained within <tt>c_expr</tt> or <tt>c_code</tt>
+statements contains errors. Repair the errors by revisiting data declarations,
+checking conversion syntax, etc. until a clean model is obtained.
+The error messages from the C compiler will pin down exactly where the
+problems come from.
+Note that in all this you should be editing the generator for the model code
+(the test harness code), not the generated model or the <tt>pan.c</tt> file,
+so our changes can survive modifications of the original
+source code of the application later.
+
+<h4>Step 6</h4>
+Run the check by executing the <tt>pan</tt>  that was created in the
+last step:
+<pre>
+	$ ./pan
+</pre>
+There may be some runtime errors, but these should be rare. The model
+checker may, for instance, ungraciously abort when it is asked to
+execute a faulty piece of C code that was encapsulated into the model checker.
+Locate the error in the same way that you would do this for a regular C program. It
+is usually sufficient to locate only the statement that caused the runtime error to
+happen (using your favorite C debugger to inspect the core file).
+
+<h4>Step 7</h4>
+At some point, when errors in the test definition are all taken care of you will start
+seeing real error reports from the model checker. To run the model checking code,
+you can simply invoke the executable and rely on the default parameter settings, as
+shown in Step 6.
+<p>
+By default the search it limited to a depth of 10,000 steps. To set a different
+depth-limit, say a shorter one of only 100 steps, you can use
+<pre>
+	$ pan -m100
+</pre>
+If the model checker reports that it runs out of memory, it may be better to compile
+the <tt>pan.c</tt> source for a high-coverage approximate check, for instance as:
+<pre>
+	$ gcc -DBITSTATE -o pan pan.c
+</pre>
+At this point you can do runs of increasing coverage (and increasing runtime) by
+trying a sequence like this:
+<pre>
+	$ ./pan -w20
+	$ ./pan -w22
+	$ ./pan -w24
+</pre>
+and so on, until an error is reported, or you again run out of memory or time. Spin
+has many more options for handling complexity that cannot be covered here. Refer
+to the online manpages and tutorials for the details:
+<pre>
+	<a href="http://spinroot.com/spin/Man/">http://spinroot.com/spin/Man/</a>
+</pre>
+Once you get to this point, though, you have successfully created a test harness. If
+error sequences are reported, inspect each such scenarios and report or fix what
+needs fixing in the code of the application itself.
+You can reproduce an error scenario discovered in a <tt>pan</tt> run with the command:
+<pre>
+	./pan -C
+</pre>
+Note that with included C code you cannot do this by invoking Spin itself, as you
+would normally do with Spin-based verifications of pure Promela models.
+
+<h4><a name=V>Vacuity Checking</a></h4>
+
+If no errors are reported, it is good to carefully check the code coverage that is
+reported by the model checker at the end of each run. You can do so by invoking
+<tt>pan</tt> with a <tt>-v</tt> verbose runtime option, so that code coverage
+is reported not just in the main model but also in any property automata, if
+used during the check.
+If parts of the code seem to be systematically missed, it is possible
+that the test drivers, or other parts of the test harness definition are to blame for
+that. If not, the code could be truly unreachable, which is likely to be an error in and
+of itself.
+
+</td><td width=10%> </td></tr></table>
+
+<h3><a name=O2>Overview of Test-Harness Commands</a></h3>
+
+<table width=100%>
+<tr>
+<td width=10%> </td>
+<td width=5%>Symbol</td>
+<td width=20%>Single- or Multi-Line</td>
+<td width=55%>Meaning</td>
+<td width=10%> </td>
+</tr>
+<tr><td> </td><td>//</td><td>	single</td><td>	Everything starting with // up to the end of the line is considered a comment</td></tr>
+<tr><td> </td><td>%F</td><td>	single</td><td>	Set target filename for C source.</td></tr>
+<tr><td> </td><td>%X</td><td>	single</td><td>	Defines C source procedures to be extracted.</td></tr>
+<tr><td> </td><td>%L</td><td>	multi</td><td>	Defines a filter (i.e., mapping table) to be used in model extractions via one or more %X commands.</td></tr>
+<tr><td> </td><td>%H</td><td>	single/multi</td><td>	Defines optional header information for generated code.</td></tr>
+<tr><td> </td><td>%D</td><td>	single/multi</td><td>	Declares C data types used in the generated code.</td></tr>
+<tr><td> </td><td>%B</td><td>	single/multi</td><td>	Like <tt>%D</tt> but appears earlier in the generated code.</td></tr>
+<tr><td> </td><td>%C</td><td>	single/multi</td><td>	Defines C data declarations used in the generated code.</td></tr>
+<tr><td> </td><td>%P</td><td>	single/multi</td><td>	Defines process infrastructure in Spin modeling language.</td></tr>
+<tr><td> </td><td>%O</td><td>	single</td><td>	Defines extra directives and linked external C-files for final compilation of the generated model checker</td></tr>
+<tr><td> </td><td>%Q</td><td>	single</td><td>	Defines extra directives for preprocessing source files from which models are to be extracted.</td></tr>
+<tr><td> </td><td>%R</td><td>	single</td><td>	Defines extra runtime flags for the verification phase with pan.</td></tr>
+<tr><td> </td><td>%T</td><td>	single</td><td>	Can be used to specify a sed command that is applied to the source before model extraction.</td></tr>
+<tr><td> </td><td>%G</td><td>	multi</td><td>	Sets parameters defining the search</td></tr>
+</table>
+
+<table width=100%><tr><td width=10%> </td><td width=80%>
+There are ten different types of commands that can appear
+in a test harness definition.
+Four of these commands always appear on a single line, followed by parameters.
+Four more commands can be used either in single line or in multi-line mode.
+When used as single-line commands, the command prefix is followed by a parameter
+that gives the name of a file in which the details for the command are stored.
+Two more commands can only be used as a multi-line command.
+The appearance of the command symbol <tt>%G</tt>, for instance,
+introduces a separate segment of the test harness that
+can be concluded with a double percent symbol <tt>%%</tt> on a line by itself.
+<p>
+Just as a quick indication of which commands are most important,
+we can look at some statistics from the definition of the Modex
+test harness definitions for the 25 challenge problems in the concurrency
+category of the TACAS 2012 model checking contest. All problems can
+be handled by Modex and verified based only on the C source code provided.
+The number of times that each of the ten available commands is used in
+all 25 test harness files combined is as follows:
+<pre>
+     68 %X
+     25 %F
+     21 %L
+     16 %H
+      6 %C
+      5 %O
+      4 %P
+      2 %D
+      1 %G
+      0 %Q
+      0 %R # was added in 2014
+      0 %T # was added in 2013
+</pre>
+The four most frequently used commands in this set then are
+<tt>%X</tt>, <tt>%F</tt>, <tt>%L</tt>, and <tt>%H</tt>,
+so these four would be worth understanding in some detail.
+The remaining six are much less likely be needed in routine applications.
+<p>
+When the model extractor encounters a named
+<tt>%L</tt> command it will first try to open a file with the name
+that follows <tt>%L</tt>. If this fails then the name is used to identify the lookup
+table contents that follows on the following lines, up to a <tt>%%</tt> closing symbol.
+A single line <tt>%L</tt> command, refering to a named file,
+is also considered to be a named lookup table, where the
+prefix of the file name serves as the reference.
+<p>
+We have already seen some examples of many of the test harness commands, but
+we have not used not all ten. We will review all commands below and give a
+synopsis of their intended use, and possible parameters.
+We will do so in the most likely order in which these commands would be used in
+a test harness. The order can help structure a test harness specification, but is
+otherwise not strictly important. There is just one exception to this rule where order
+does matter: an <tt>%X</tt> command always refers to the last preceding <tt>%F</tt> command.
+A test harness file therefore usually begins with an <tt>%F</tt> command.
+
+
+<h4><a name=F0>%F</a></h4>
+An <tt>%F</tt> command sets the filename for the source of subsequent <tt>%X</tt> commands.
+There can be multiple <tt>%X</tt> commands in a test harness, one
+for each procedure that is instrumented by model extraction.
+The last <tt>%F</tt> command before an <tt>%X</tt> command will be the
+one that determines which source file is scanned for a function to be extracted.
+If no <tt>%F</tt> command is given, the source file defaults to the name
+of the test harness with the suffix <tt>.prx</tt> replaced with <tt>.c</tt>.
+A warning is generated if that file does not exist, and
+naturally any subsequent <tt>%X</tt> command would fail in that case.
+
+<h4><a name=X0>%X</a></h4>
+An <tt>%X</tt> command defines one or more function names that are the target
+of a model extraction attempt.
+An option flag preceding the function name specifies in what form the model is to
+be encapsulated into the model. The possible option flags are summarized below.
+
+<ul><ul>
+	Valid Parameters to an %X Command
+</ul></ul>
+<table width=100%>
+<tr>
+<td width=10%> </td>
+<td width=20%>Parameter</td>
+<td width=60%>Meaning</td>
+<td width=10%> </td>
+</tr>
+<tr><td> </td><td>-x</td><td>Extract all procedures from the target C-source file.</td></tr>
+<tr><td> </td><td>-xe</td><td>Extract all procedures as active extended proctypes.</td></tr>
+<tr><td> </td><td>-a pname</td><td>Extract procedure pname as an active proctype.</td></tr>
+<tr><td> </td><td>-i pname</td><td>Extract procedure pname as an inline definition.</td></tr>
+<tr><td> </td><td>-p pname</td><td>Extract procedure pname as a passive proctype.</td></tr>
+<tr><td> </td><td>-e pname</td><td>Extract procedure as an extended active proctype (instrumented to support a procedure call mechanism).</td></tr>
+<tr><td> </td><td>-E pname</td><td>Extract procedure as an extended passive proctype.</td></tr>
+<tr><td> </td><td>-n pname</td><td>Extract procedure pname without proctype encapsulation.</td></tr>
+<tr><td> </td><td>-L map-name</td><td>Define a map to be used in subsequent model extractions.</td></tr>
+</table>
+
+<p>
+Options <tt>-a</tt>, <tt>-e</tt>, and <tt>-xe</tt> can optionally be followed by a
+small integer number that specifies how many instantiations of the process should
+be created. For instance,
+<pre>
+	%X -a3 foo
+</pre>
+would cause the instantiation of three concurrent threads that execute the
+(instrumented) function <tt>foo</tt>.
+Note that when using option <tt>-e</tt> to instrument function calls, by default only
+one function call of each type can be executed simultaneously. If using <tt>-e2</tt>
+then two calls of that function can execute simultaneously and interleave their
+executions.
+<p>
+The <tt>-x</tt> option does not take an argument, since it targets all functions
+found in the current source file. The remaining option flags take exactly one
+function name as an argument. Each option flag can be preceded by a <tt>-L</tt>
+option that specifies a named mapfile that is to be used for this extraction.
+<p>
+The recommended format is to group options that relate to the same target of a
+model extraction command on the same command line. For instance:
+<pre>
+	%X -L map1 -a p1
+	%X -L map2 -n p2
+</pre>
+Any other grouping of white-space separated options, however, is valid. If the
+test harness contains an unnamed <tt>%L</tt> segment, then the map defined by that
+segment is applied to all model extractions performed, in addition to possibly
+named maps specified with explicit <tt>-L</tt> options.
+In case of conflicts, a named <tt>-L</tt> option
+always takes precedence over an unnamed mapfile.
+A missing <tt>%X</tt> command is interpreted to mean that model extraction is
+to be applied only to the <tt>main</tt> procedure of the target C source file.
+
+<ul><ul>
+	Valid %G Options
+</ul></ul>
+<table width=100%>
+<tr>
+<td width=10%> </td>
+<td width=10%>Option</td>
+<td width=10%>Default</td>
+<td width=60%>Meaning</td>
+<td width=10%> </td>
+</tr>
+<tr><td> </td><td>maxdepth:</td><td>1000<td>Limit search depth for model checking to N steps</td><td> </td></tr>
+<tr><td> </td><td>memlim:</td><td>350</td><td>Limit memory use for model checking runs to N Mbytes
+<tr><td> </td><td>loops:</td><td>0</td><td>Do no search for accept cycles (0 or 1)
+<tr><td> </td><td>np_loops:</td><td>0</td><td>Do not search for non-progress cycles (0 or 1)
+<tr><td> </td><td>noend:</td><td>1</td><td>Do not search for invalid endstates (0 or 1)
+<tr><td> </td><td>asserts:</td><td>1</td><td>Search for assertion violations (0 or 1)
+<tr><td> </td><td>shortest:</td><td>0</td><td>Do not search for the shortest possible error (0 or 1)
+<tr><td> </td><td>quality:</td><td>3</td><td>Set a medium search coverage (1..10); 1 gives maximal speed, 10 gives maximal coverage
+<tr><td> </td><td>exhaustive:</td><td>0</td><td>Do not force an exhaustive search coverage (values 0 or 1)
+<tr><td> </td><td>zflag:</td><td>0</td><td>Do not process system header files when pre-processing source files for model extraction (0 or 1)
+</table>
+
+<h4><a name=L0>%L</a></h4>
+The <tt>%L</tt> command is used to define conversion filters, i.e., mapping tables,
+either with an unnamed command (i.e., when the <tt>%L</tt> is not followed by a name)
+that applies to all models extracted thought this test harness, or with named
+mapping tables (an <tt>%L</tt> command followed by a unique name that can be
+refered to in an <tt>%X</tt> command with the <tt>-L</tt>  option).
+<p>
+There can be any number of mapping tables, but
+only one unnamed one, and only one for each unique name used.
+The main purpose of a mapping
+table is to define conversions from statements or conditions that
+appear in the source text, into abstracted versions that are used in the model.
+There is a predefined conversion that simply encapsulates each statement in a
+Promela <tt>c_code</tt> fragment and each condition in a Promela <tt>c_expr</tt> statement,
+while adjusting all variable references for the imported data. A user-defined conversion
+is therefore only needed when the default isn't adequate.
+<p>
+A conversion rule
+can be used to suppress pieces of code that are outside the check, to simplify or
+abstract pieces of code, or to lift certain operations up to the level of the test harness,
+overriding the builtin functionality of the application itself. This would, for
+instance, be done if the real application environment is replaced with a set of test
+drivers that simulate all the behaviors of interest of that environment in a controlled
+way. Send and receive operations are typically replaced with test artifacts in this
+way, process control and thread control operations similarly are usually replaced
+with model specific equivalents.
+<p>
+There are also a small number of special commands that can be used within a
+mapping table. These special commands are summarized below.
+
+<pre>
+		<b>Lookup Table - 7 Special Commands</b>
+</pre>
+<table width=100%>
+<tr>
+<td width=10%> </td>
+<td width=15%>Name</td>
+<td width=10%>#Params</td>
+<td width=55%>Description</td>
+<td width=10%> </td>
+</tr>
+<tr><td> </td><td valign=top>Constant</td><td valign=top>>=1</td><td>Declare one or more names as symbolic names representing constant integer values</td><td> </td></tr>
+<tr><td> </td><td valign=top>Declare</td><td valign=top>3</td><td>Add a data  declaration that does not appear in the source</td></tr>
+<tr><td> </td><td valign=top>Import</td><td valign=top>2</td><td>Explicitly identify data objects in the source that must be part of the model (overriding the default behavior of importing all data objects)</td></tr>
+<tr><td> </td><td valign=top>Include</td><td valign=top>1</td><td>Recursively include a subsidiary mapping table</td></tr>
+<tr><td> </td><td valign=top>NonState</td><td valign=top>2</td><td>Declare data objects that carry no state information</td></tr>
+<tr><td> </td><td valign=top>Substitute</td><td>2</td><td>Define a post-conversion rewrite rule</td></tr>
+<tr><td> </td><td valign=top>Track</td><td valign=top>2</td><td>Declare data objects in linked code (not
+part of the extracted models) that carry state information that must be tracked by the model checker</td></tr>
+</table>
+
+<b>Constant</b> is used to introduce names that are known to have a constant
+value (which means that they need not be tracked dynamically as state information).
+For instance:
+<pre>
+	Constant zero	one
+</pre>
+<b>Include</b> specifies the name of a secondary mapping table that will
+be read in and inserted into the current table in place if the Include command.
+For instance:
+<pre>
+	Include shared.lut
+</pre>
+<b>Declare</b> takes three arguments:
+<ul>
+<li>first the name of a data object, then
+<li>the type of that object and finally
+<li>the scope of that object.
+</ul>
+A scope definition consists of either the predefined word <tt>Global</tt>,
+or, for a local variable, the name of a function within the source file.
+The effect of the command is that a declaration
+of the given type will be included as part of the state descriptors in the generated
+test code.
+For instance:
+<pre>
+	Declare struct rlV5IFDB	ifdb_11	Global
+	Declare int		number	main
+</pre>
+<b>Import</b> takes two arguments:
+<ul>
+<li>the name of a data object that appears in the source file, and
+<li>the scope of that object.
+</ul>
+The data object must be referenced in at least one of the functions
+that is the target of a model extraction, or else this entry has no effect.
+For instance:
+<pre>
+	Import	ifdb_11	Global
+	Import	number	main
+</pre>
+<b>NonState</b> takes two arguments:
+<ul>
+<li>first is either they keyword <tt>hidden</tt> or the type of a data object.
+<li>The second argument is the name of the data object.
+</ul>
+The scope of a <tt>NonState</tt> variable is always assumed to be global.
+If the first argument is <tt>hidden</tt> then the declaration will not
+appear in the test code that is generated.
+(There may be cases where the data object must be known during the model
+extraction phase, even though it is not needed in the generated code).
+For instance:
+<pre>
+	NonState V_State	*tossinfo
+	NonState char		dummy[64]
+	NonState hidden		a[]
+</pre>
+<b>Substitute</b> takes two arguments.
+<ul>
+<li>The first argument is a text-string that is to be replaced with
+<li>the second argument <i>after</i> all other mapping table commands have been applied.
+</ul>
+For instance:
+<pre>
+	Substitute   c_code { mutex_unlock(&(now.m_busy)); }   m_busy = 0
+</pre>
+<b>Track</b> takes two arguments.
+<ul>
+<li>The first argument is a pointer to a data object that is declared externally
+to the code managed by the model checker (i.e.,
+code that will be linked with the model checker to perform an executable for the
+test system).
+<li>The second argument defines the size of that object.
+</ul>
+Generally, the data object being tracked must also be declared in a C extern
+declaration, e.g., in a <tt>%D</tt> segment.
+For instance:
+<pre>
+	Track  &heap	sizeof(heap)
+</pre>
+
+<p>
+All other entries in a mapping table that do not match the above special commands are
+interpreted as conversion rules. A conversion rules always consists of two parts,
+separated by one or more tabs. The left hand side of the rule specifies the source
+text to be replaced, and the right hand side defines the replacement text of that
+piece of source code in the extracted model.
+<p>
+There are a few short-hands that can be used on the right-hand side of a conversion rule.
+The available short-hands are summarized below.
+
+<pre>
+	Predefined Mapping Keywords in Lookup Tables
+</pre>
+<table width=100%>
+<tr>
+<td width=10%> </td>
+<td width=15%>Keyword</td>
+<td width=65%>Description</td>
+<td width=10%> </td>
+</tr>
+<tr><td> </td><td>comment</td><td>Include the statement as a comment in the model</td><td> </td></tr>
+<tr><td> </td><td>hide</td><td>Omit the statement from the test model</td><td> </td></tr>
+<tr><td> </td><td>skip</td><td>Like hide, but replaces statement with a null-step</td><td> </td></tr>
+<tr><td> </td><td>keep</td><td>Copy the statement without syntax conversions</td><td> </td></tr>
+<tr><td> </td><td>print</td><td>Include the statement text in a print statement</td><td> </td></tr>
+<tr><td> </td><td>warn</td><td>Issue a warning if the left-hand side is encountered</td><td> </td></tr>
+<tr><td> </td><td>true</td><td>define an expression to always evaluate to true</td><td> </td></tr>
+<tr><td> </td><td>false</td><td>define an expression to always evaluate to false</td><td> </td></tr>
+<tr><td> </td><td>C_code</td><td>Encapsulate the statement as is inside the model</td><td> </td></tr>
+<tr><td> </td><td>C_expr</td><td>Encapsulate and treats as an expression</td><td> </td></tr>
+</table>
+<p>
+There is an additional type of pattern that can be used on the left-hand side of a conversion rule.
+Any text-string that ends in three dots is understood to be a prefix of a code
+fragment, and it will match any statement or expression that begins with the string
+before the three dots.
+For instance:
+<pre>
+	printf(...	warn
+</pre>
+
+could be used to issue a warning for every <tt>printf</tt> statement that appears in the
+source text for a target procedure.
+<p>
+If multiple matches are possible, the first match encountered in the scanning of the
+mapping tables will take effect. A named mapping table is always scanned first.
+A default unnamed table is scanned last.
+<p>
+<h4><a name=H0>%H</a></h4>
+The <tt>%H</tt> command provides a capability to prepend a set of definitions
+or declarations at the front of a source file, so that these definitions are read
+by the model extractor before the parsing of the source file itself begins. This
+capability is useful when, for instance, a source file is imported from another platform
+and some data types must be redefined for portability. The required information
+can be placed in a file, which can be named as the argument of a single-line
+version of the <tt>%H</tt> command; it can also be specified inline.
+
+<h4><a name=D0>%D</a></h4>
+The <tt>%D</tt> command is used to declare data types for imported data objects in a test
+harness. Import commands in the mapping tables only affect the variable objects
+themselves, not the corresponding type declarations. The <tt>%D</tt> command gives the
+opportunity to define specialized versions of the data types used in an application.
+It can also simply include a header file with the original type declarations from the
+application. If an include file is used in the test harness, it is recommended to prefix
+the <tt>#</tt> character in the left margin with a backslash, to defer interpretation to the
+final compilation step. This bypasses possible bounds that may exist in the model checker.
+As with the <tt>%H</tt> command, the specifics for the <tt>%D</tt> command can be
+placed in a file which is named as a single argument to a single line version of the
+<tt>%D</tt> command, or it can be defined inline.
+
+<h4><a name=B0>%B</a></h4>
+The <tt>%B</tt> command is like <tt>%D</tt>, but the declaration is placed
+<i>before</i>, instead of <i>after</i>, all global declarations. This can be useful, for instance,
+to get C <tt>typedef</tt> declarations declared early enough.
+
+<h4><a name=C0>%C</a></h4>
+The <tt>%C</tt> command can be used to introduce arbitrary C code into the model. It is
+useful, for instance, when some small additional procedures must be defined. An
+alternative is to place such code in an external file and to link it with the generated
+code.
+
+<h4><a name=P0>%P</a></h4>
+The <tt>%P</tt> command is the main vehicle for defining the architecture of a test model,
+the test drivers and possible channel declarations and Promela data objects, as
+illustrated in the examples.
+
+<h4><a name=O0>%O</a></h4>
+The <tt>%O</tt> command is used to list compile-time directives and external C-files that
+are to be linked with the test executable that is generated by Modex. For instance,
+it could say:
+<pre>
+	%O ipc_stubs.o Downlink.o
+</pre>
+to define that the two precompiled modules are to be linked in with the test executable,
+presumably because these contain the code for procedures that are called
+from within test-drivers or from within instrumented code.
+
+<h4><a name=Q0>%Q</a></h4>
+The <tt>%Q</tt> command is used to define additional preprocessing directives that may
+be needed to properly parse the source code before model extraction takes place.
+An example is:
+<pre>
+	%Q -DCPU=SIMSPARCSOLARIS -DFSW_UNIT_TEST -IWind
+</pre>
+which defines two compile-time constants and sets the path for a directory to be
+searched for include files.
+
+<h4><a name=R0>%R</a></h4>
+The <tt>%R</tt> command is used to pass additional run-time parameters to the executable
+verifier (<tt>pan</tt>) for the verification step. E.g.:
+<pre>
+	%R -a
+</pre>
+to force a search for acceptance cycles.
+
+<h4><a name=T0>%T</a></h4>
+The <tt>%T</tt> command can be used to define a sed command that can be used
+to preprocess the source file before any of the model extraction operations
+are applied. 
+An example is:
+<pre>
+	%T sed 's;goto ERROR;assert(0);'
+</pre>
+The command can also be defined as a pipeline, but the assumption
+is that it reads stdin at the first command, and writes stdout
+An example is:
+<pre>
+	%T sed 's;goto ERROR;assert(0);' | sed 's;pthread_exit.*;;'
+</pre>
+Be careful to use single quotes instead of double quotes, or modex will complain.
+
+<h4><a name=G0>%G</a></h4>
+The <tt>%G</tt> command is used for setting persistent parameter values used
+in the final verification step. Currently the options listed above
+are recognized. Some of the parameters determine the type of search that
+is performed, others determine particulars of the way that
+error sequences are generated.
+The options are specified as a prefix, followed by a tab and a numerical value.
+
+
+</td><td width=10%> </td></tr></table>
+
+<h3><a name=S>Synopsis</a></h3>
+
+<table width=100%><tr><td width=10%> </td><td width=80%>
+
+<pre>
+    Command	  Meaning
+
+    Single-Line Commands:
+    --------------------
+    %F fname	  Set target C source filename, fname, for subsequent model extractions via %X commands
+
+    %X -x	  Extract all procedures from the target C-source file
+    %X -xe	  Extract all functions as extended proctypes from the target C-source file
+		  Optionally: -xeN for N parallel instantiations
+    %X -a pname	  Extract procedure pname as an active proctype
+		  Optionally: -aN for N parallel instantiations
+    %X -i pname	  Extract procedure pname as an inline definition
+    %X -p pname	  Extract procedure pname as a passive proctype
+    %X -e pname	  Extract as instrumented function (with instrumented calls)
+    %X -f pname   Like -e, but with the function executing atomically
+    %X -E pname	  Extract procedure as an instrumented passive proctype
+    %X -n pname	  Extract procedure pname without proctype encapsulation
+    %X -L mapname Define a map to be used in subsequent model extractions
+    
+    %O		Define compilation directives and external C-files
+    		for compilation of the verifier, e.g., %O -DVECTORSZ=2048
+    
+    %Q		Define directives for preprocessing source from which
+    		models are to be extracted, e.g., %Q "-Dshort=int"
+
+    %R		Define runtime flags for the verification phase, e.g., %R -a
+
+    %T		Preprocessing command for the source. Typically a sed-command.
+    		e.g., %T sed 's;foo;bar;g'
+
+    Multi-Line Commands (concluded with a %% on a single line):
+    ----------------------------------------------------------
+    %L		Define a conversion/mapping table to be used in model extraction via %X commands
+
+    %H		Define optional header information for generated code
+		(Can also be used as a single-line command, when given a filename with the details
+		e.g., as in %H "filename.h")
+    
+    %D		Declare C data types used in the generated code (w. optional single-line format, see %H)
+    
+    %C		Introduce arbitrary C code into the model (w. optional single-line format, see %H)
+
+    %P		Define process infrastructure in Spin modeling language (w. optional single-line format, see %H)
+        	The part of the model defined here precedes all other extracted parts in the final code.
+
+    %A  	Same as %P, except the part of the model defined here is placed after all other parts.
+
+    %G		Possible parameter settings, with their default values:
+
+    		maxdepth: 1000	# Limit search depth for model checking to 1000 steps.
+    		memlim:    350	# Limit memory use for model checking runs to 350 Mbytes
+    		loops:       0	# Do no search for accept cycles (0 or 1)
+    		np_loops:    0	# Do not search for non-progress cycles (0 or 1)
+    		noend:       1	# Do not search for invalid endstates (0 or 1)
+    		asserts:     1	# Search for assertion violations (0 or 1)
+    		shortest:    0	# Not necessarily the shortest possible error (0 or 1)
+    		quality:     3	# Set a medium search coverage (range 1..10);
+    				# 1 gives maximal speed, 10 gives maximal coverage
+    		exhaustive:  0	# do not/do force exhaustive search coverage (0 or 1)
+    		io_only:     0	# List all operations in MSCs, not just i/o (0 or 1)
+    		use_vals:    0	# Do not display parameter values in MSCs (0 or 1)
+    		zflag:       0	# Do not process system header files when preprocessing
+    				# source files for model extraction (0 or 1).
+</pre>
+
+</td><td width=10%> </td></tr></table>
+
+<h3><a name=R2>References</a></h3>
+
+<table width=100%><tr><td width=10%> </td><td width=70%>
+
+[H97] G.J. Holzmann, "The model checker Spin,"
+IEEE Trans. on Softw. Eng., Vol. 23, No. 5, May 1997, pp. 279-295.
+<a href="http://spinroot.com/spin/Doc/ieee97.pdf">(PDF)</a>,
+or see: <a href="http://spinroot.com/spin/">Spin website</a>
+<p>
+[HS99a] G.J. Holzmann and M.H. Smith, "A practical method for the verification of
+event-driven software," Proc. Intern. Conf. on Software Engineering, May 1999,
+Los Angeles, CA., pp. 597-607.
+<a href="http://cm.bell-labs.com/cm/cs/who/gerard/gz/icse99.pdf">(PDF)</a>
+<p>
+[HS99b] G.J. Holzmann, and M.H. Smith, "Software model checking: extracting
+verification models from source code," Software Testing, Verification and
+Reliability, Vol. 11, No. 2, June 2001, pp. 65-79.
+<a href="http://cm.bell-labs.com/cm/cs/who/gerard/gz/fortepstv99.pdf">(PDF)</a> 
+<p>
+[H00] G.J. Holzmann, "Lecture Notes on Software Model Checking,"
+NATO Summerschool, Aug. 2000, Marktoberdorf, Germany.
+<a href="http://cm.bell-labs.com/cm/cs/who/gerard/gz/marktoberdorf.pdf">(PDF)</a>
+<p>
+[HS00] G.J. Holzmann, and M.H. Smith, "Automating software feature verification,"
+Bell Labs Technical Journal, Vol. 5, No. 2, April-June 2000, pp. 72-87.
+<a href="http://cm.bell-labs.com/cm/cs/who/gerard/gz/bltj2000.pdf">(PDF)</a>
+<p>
+[H00] G.J. Holzmann, "Logic Verification of ANSI-C Code with Spin,"
+Spin Workshop, Stanford University, CA., Aug-Sept. 2000, Springer Verlag, Lecture
+Notes in Computer Science, Vol. 1885, pp. 131-147.
+<a href="http://cm.bell-labs.com/cm/cs/who/gerard/gz/spin2000.pdf">(PDF)</a> 
+<p>
+[H01] G.J. Holzmann, "From Code to Models," Proc. 2nd International Conference
+on Concurrency to System Design, Newcastle, U.K., IEEE Computer Society
+Press, June 2001, pp. 3-10.
+<a href="http://spinroot.com/gerard/pdf/code_models2000.pdf">(PDF)</a>
+<p>
+[H04] G.J. Holzmann, "The Spin Model Checker - Primer and Reference Manual,"
+Addison-Wesley, 2004.
+<a href="http://spinroot.com/spin/Doc/Book_extras/">(URL)</a>
+<p>
+
+</td><td width=20%> </td></tr></table>
+<hr>
+<table width=100%><tr><td align=center>
+ <font size=2>(last update: 31 December 2014)</font>
+</td></tr></table>
+</body>
+</html>

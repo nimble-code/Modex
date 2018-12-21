@@ -1,0 +1,31 @@
+%F abp.c
+%X -L abp_snd.lut -n abp_snd
+%X -L abp_rcv.lut -n abp_rcv
+%L abp_snd
+(!get_data(...	false
+send(out)	c_code { Pp_abp_snd->s = Pp_abp_snd->out.seq; }; qr!s
+%L abp_rcv
+put_data(...	skip
+send(out)	c_code { Pp_abp_rcv->s = Pp_abp_rcv->out.seq; }; qs!s
+%P
+chan qs = [0] of { bit };
+chan qr = [0] of { bit };
+
+active proctype p_abp_snd()
+{	bit s;
+
+	do
+	:: qs?s -> c_code { Pp_abp_snd->in.seq = Pp_abp_snd->s; };
+	#include "_modex_abp_snd.pml"
+	od
+}
+
+active proctype p_abp_rcv()
+{	bit s;
+	qs!0; /* start sender */
+	do
+	:: qr?s -> c_code { Pp_abp_rcv->in.seq = Pp_abp_rcv->s; };
+	#include "_modex_abp_rcv.pml"
+	od
+}
+%%

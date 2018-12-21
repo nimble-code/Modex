@@ -1,0 +1,17 @@
+%X -xe2
+%C
+void
+cas(volatile uint *v,
+    volatile uint  e,
+    volatile uint  u,
+    volatile uint *r,
+    volatile uint *flag)
+{
+	if (*v == e)
+	{	*flag = 1, *v = u, *r = 1;
+	} else
+	{	*r = 0;
+	}
+}
+%L
+r=rand()	if :: r = 0 :: r = 1 fi

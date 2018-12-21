@@ -1,0 +1,27 @@
+open(...		comment
+close(...		comment
+fflush(...		comment
+fprintf(...		comment
+printf(...		comment
+write(...		comment
+sleep(...		comment
+
+fgets(...		warn
+fscanf(...		warn
+read(...		warn
+exit(...		warn
+pthread_exit(...	warn
+
+connect(...		warn
+socket(...		warn
+gethostbyname(...	warn
+getprotobyname(...	warn
+
+(fgets(...		warn
+(fscanf(...		warn
+(read(...		warn
+
+(connect(...		warn
+(socket(...		warn
+(gethostbyname(...	warn
+(getprotobyname(...	warn

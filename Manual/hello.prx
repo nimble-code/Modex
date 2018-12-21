@@ -1,0 +1,17 @@
+%F hello.c
+%X -x
+%L
+printf(...	keep
+%H
+struct A { int foobar_t; };	/* shows up at the start of pan.c */
+%D
+typedef struct d_part {
+	int  d_1;
+	char d_2;
+} d_part;		/* after struct A, before pan.h */
+%B
+struct B { int goo; };	/* before struct A*/
+%C
+State c_part;		/* in pan.c after pan.h */
+%P
+int p_part;		/* in pan.h inside state vector */

@@ -1,0 +1,130 @@
+#!/bin/sh
+
+# set -v
+
+verbose=1
+modex_args=""
+pan_replay="-C"
+pan_run=""
+
+while [ $# -gt 0 ]
+do
+	case $1 in
+	"-E")
+		pan_run="$pan_run -E"
+		shift
+		;;
+	"-A")
+		pan_run="$pan_run -A"
+		shift
+		;;
+	"-a")
+		pan_run="$pan_run -a"
+		shift
+		;;
+	"-n")
+		verbose=0
+		shift
+		;;
+	"-p")
+		modex_args="-A"
+		pan_replay="-r -S"
+		shift
+		;;
+	"-m")
+		shift
+		modex_args="$modex_args $1"
+		shift
+		;;
+	"-r")
+		shift
+		pan_run="$pan_run $1"
+		shift
+		;;
+	*)
+		break
+		;;
+	esac
+done
+
+if [ $# -eq 0 ]
+then	echo "usage: verify [-n | -p | -E | -A] [file.c | clean]"
+	echo " -n	non-verbose"
+	echo " -p	add embedded modex_args"
+	echo " -E	no invalid end-state errors"
+	echo " -A	no assertion violations"
+	echo " -a	acceptance cycles"
+	echo " -m xxx	pass argument xxx to modex"
+	echo " -r xxx	pass argument xxx to pan"
+	echo "	e.g., -E is the same as -r -E"
+	exit 1
+fi
+
+if [ $verbose -eq 1 ]
+then
+	case $1 in
+	clean)
+		rm -f pan.? pan model model.trail _modex* *.M *.nlut
+                rm -f _spin_nvr.tmp
+		exit 0
+		;;
+	replay)
+		./pan $pan_replay |
+			sed 's;P[^\-]*->;;g' |
+			sed 's;now\.;;g' |
+			grep -v -e req_cll -e exc_cll -e par0_ -e lck_ -e res_ -e ret_
+		exit 0
+		;;
+	*)
+		echo ""
+		echo "	Extract Model:"
+		echo "	=============="
+		echo modex $modex_args $*
+		;;
+	esac
+
+fi
+
+while [ $# -gt 1 ]
+do
+	modex_args="$modex_args $1"
+	shift
+done
+
+if [ -s $1 ]
+then	true
+else	echo "verify: bad file argument $1"
+	exit 1
+fi
+
+if modex $modex_args $1
+then	rm -f model*.trail pan.?
+	if [ $verbose -eq 1 ]
+	then	echo ""
+		echo "	Compile and Run:"
+		echo "	================"
+		echo "sh _modex_.run $pan_run"
+	fi
+	sh _modex_.run $pan_run
+else
+	exit 1
+fi
+if [ -f model.trail ]
+then
+	if [ $verbose -eq 1 ]
+	then	echo ""
+		echo "	Error Found:"
+		echo "	============"
+		echo pan $pan_replay
+	fi
+
+	./pan $pan_replay |
+		sed 's;P[^\-]*->;;g' |
+		sed 's;now\.;;g' |
+		grep -v -e req_cll -e exc_cll -e par0_ -e lck_ -e res_ -e ret_
+else
+	if [ $verbose -eq 1 ]
+	then	echo ""
+		echo "No Errors Found"
+	fi
+fi

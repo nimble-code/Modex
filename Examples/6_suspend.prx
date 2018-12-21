@@ -1,0 +1,26 @@
+%X -a main
+%X -n counter
+%L
+gets(str)			hide
+thr_create(...			hide
+printf(...			hide
+(i<50000)			false
+
+thr_suspend(ctid)		Suspended = 1
+thr_continue(ctid)		Suspended = 0
+
+mutex_lock(&(count_lock))	atomic { count_lock == 0 -> count_lock = 1 }
+mutex_unlock(&(count_lock))	count_lock = 0
+
+%P
+	bool Suspended;
+
+	#include "_modex_main.pml"
+
+	active proctype p_counter() provided (!Suspended) {
+		#include "_modex_counter.pml"
+	}
+%G
+maxdepth: 100
+shortest: 1
+%%

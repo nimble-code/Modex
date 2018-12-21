@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# make script for Windows PCs with Visual Studio C++ compiler
+# also required: bison, lex, rm, mv, grep (e.g., from cygwin)
+
+bison -v -d gram.y
+	mv gram?tab.c gram.c
+	mv gram?tab.h gram.h
+
+flex lexer.l
+	mv lex.yy.c lexer.c
+
+cl -nologo -DPC -o modex \
+	modex.c xtract.c heap.c nmetab.c symtab.c \
+	token.c tree.c treestk.c lexer.c gram.c dflow.c \
+	prnttree.c modex_pp.c ps_graph.c
+
+rm -f *.obj gram.output # lexer.c gram.c gram.h
+
+mv modex.exe    /usr/local/bin
+cp defaults.lut /usr/local/share/
+

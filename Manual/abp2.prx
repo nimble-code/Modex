@@ -1,0 +1,17 @@
+%F abp2.c
+%X -L abp_snd.lut -a abp_sender
+%X -L abp_rcv.lut -a abp_receiver
+%L abp_snd
+Declare	bit	s	abp_sender
+fetch_data(...	true
+send(m)		c_code { Pp_abp_sender->s = Pp_abp_sender->m.seq; }; qr!s
+receive(...	qs?s; c_code { Pp_abp_sender->ack.seq = Pp_abp_sender->s; }
+%L abp_rcv
+Declare	bit	s	abp_receiver
+store_data(...	skip
+send(ack)	c_code { Pp_abp_receiver->s = Pp_abp_receiver->ack.seq; }; qs!s
+receive(...	qr?s; c_code { Pp_abp_receiver->m.seq = Pp_abp_receiver->s; }
+%P
+chan qs = [0] of { bit };
+chan qr = [0] of { bit };
+%%

@@ -1,0 +1,12 @@
+%X -xe2
+%C
+int
+cas(Entry **ptr, Entry *old, Entry *new)
+{       /* atomic compare and swap */
+        if (*ptr == old)
+        {       *ptr = new;
+                return 1;
+        } /* else */
+        return 0;
+}
+%%
