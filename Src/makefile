@@ -6,7 +6,7 @@
 #
 #	Use the script make_pc to compile for a Windows PC
 #
-CC     = gcc -Wall # -m32
+CC     = gcc # -Wall # -m32
 CFLAGS = -g
 CPPFLAGS =
 # default values:

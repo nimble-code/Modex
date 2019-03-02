@@ -8,12 +8,12 @@
 /* Software written by Gerard J. Holzmann based on the public domain      */
 /* ANSI-C parser Ctree Version 0.14 from Shaun Flisakowski                */
 
-#if !defined(GCC) && !defined(_SYS_BSD_TYPES_H) && !defined(UTYPES)
-
+#ifndef UTYPES
 #define UTYPES
 
-typedef unsigned int	uint;
-typedef unsigned char	uchar;
-typedef unsigned long	ulong;
-
+#if !defined(GCC) && !defined(_SYS_BSD_TYPES_H)
+	typedef unsigned int	uint;
+	typedef unsigned char	uchar;
+	typedef unsigned long	ulong;
+#endif
 #endif

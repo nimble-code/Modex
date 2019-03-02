@@ -8,6 +8,9 @@
 /* Software written by Gerard J. Holzmann based on the public domain      */
 /* ANSI-C parser Ctree Version 0.14 from Shaun Flisakowski                */
 
+#ifndef GLOBALSH
+#define GLOBALSH
+
 #include    <stdio.h>
 #include    <string.h>
 #include    <stdlib.h>
@@ -32,3 +35,5 @@ EXT_INIT(TreeStack *DoneStack, NULL);    /* Parse trees for included files */
 
 #undef EXT_DEF
 #undef EXT_INIT
+
+#endif

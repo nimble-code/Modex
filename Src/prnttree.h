@@ -10,6 +10,9 @@
 
 /* Original version by Shawn Flisakowski, March 27, 1995 */
 
+#ifndef PRNTREEH
+#define PRNTREEH
+
 #include <stdio.h>
 #include "tree.h"
 
@@ -19,3 +22,5 @@ char *print_ptr(void *ptr);
 void  print_tree(treenode*, FILE *);
 void  modex_leaf(leafnode*, int tabs);
 void  modex_tree(treenode*, char *);
+
+#endif

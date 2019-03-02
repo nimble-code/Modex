@@ -30,7 +30,7 @@ static char SaveMe[1024];
 
 char	*Fct_name;
 int	RealDecls;
-DuG	*d_g;
+DuG	*du_g;
 
 char *
 doit(leafnode *leaf, int how)
@@ -61,7 +61,7 @@ DuG *
 dep_node(SymList *a, int imark)
 {	DuG *g;
 
-	for (g = d_g; g; g = g->nxt)
+	for (g = du_g; g; g = g->nxt)
 		if (g->sm == a->sm)
 		{	g->marks |= imark;
 			goto done;
@@ -75,8 +75,8 @@ dep_node(SymList *a, int imark)
 	g->marks = imark;
 	g->rdcls |= RealDecls;
 	g->d_e = (DuGP *) 0;
-	g->nxt = d_g;
-	d_g = g;
+	g->nxt = du_g;
+	du_g = g;
 done:
 	return g;
 }
@@ -109,7 +109,7 @@ dep_trans(void)	/* transitive closure */
 	int dist, cnt;
 
 	do {	cnt = 0;
-		for (g = d_g; g; g = g->nxt)
+		for (g = du_g; g; g = g->nxt)
 		for (s = g->d_e; s; s = s->nxt)			/* successors */
 		{	t = s->ptr;				/* one successor in DuG */
 			for (u = t->d_e; u; u = u->nxt)		/* the successors of this */
@@ -143,7 +143,7 @@ dep_show(void)
 	dep_trans();
 	fprintf(stdout, "\n");
 
-	for (g = d_g; g; g = g->nxt)
+	for (g = du_g; g; g = g->nxt)
 	{	if (!g->d_e
 		||  !g->rdcls)
 			continue;
@@ -156,7 +156,7 @@ dep_show(void)
 	}
 	fprintf(stdout, "\n");
 
-	for (g = d_g; g; g = g->nxt)
+	for (g = du_g; g; g = g->nxt)
 	{	if (!g->marks
 		||  !g->rdcls
 		|| (!(Verbose&2) && (g->marks&HIDE)))
@@ -202,7 +202,7 @@ mark_defs(DefUse *d, int how, FILE *fp)	/* how=0: keep or map, HIDE: comment, pr
 	DuG *g;
 
 	for (s = d->def; s; s = s->nxt)
-	for (g = d_g; g; g = g->nxt)
+	for (g = du_g; g; g = g->nxt)
 		if (g->sm == s->sm)
 		{
 			if ((g->marks & (DEF|(how&~HIDE))) != (DEF|(how&~HIDE)))
@@ -212,7 +212,7 @@ mark_defs(DefUse *d, int how, FILE *fp)	/* how=0: keep or map, HIDE: comment, pr
 		}
 
 	for (s = d->use; s; s = s->nxt)
-	for (g = d_g; g; g = g->nxt)
+	for (g = du_g; g; g = g->nxt)
 		if (g->sm == s->sm)
 		{
 			if ((g->marks & USE) != USE)

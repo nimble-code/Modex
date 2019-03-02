@@ -30,7 +30,7 @@ extern char	*toksym(int tok, int white);
 extern char	*progname;
 
 #define DDEBUG	if (0)
-#define DTREE	if (1)
+#define DTREE
 
 void
 dot_leaf(leafnode *leaf)

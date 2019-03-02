@@ -629,23 +629,24 @@ if (debug_io) fprintf(stderr, "Open %s -> %p\n", fnm, fo);
 }
 
 void
-header(char *bnm, char *suffix)
+header(char *bnm, char *suffix1)
 {	char *fnm;
 
 	if (fo)
 	{	if (incode && !inltl) fprintf(fo, "}\n");
 		if (fo != fdrv)
-		{
-if (debug_io) fprintf(stderr, "close 3 %p\n", fo);
+		{	if (debug_io)
+			{	fprintf(stderr, "close 3 %p\n", fo);
+			}
 			Fclose(fo);
 	}	}
 	inlut = incode = inspn = indfn = ingui = inltl = 0;
 
-	fnm = (char *) e_malloc(strlen(bnm)+strlen(suffix)+1);
+	fnm = (char *) e_malloc(strlen(bnm)+strlen(suffix1)+1);
 	strcpy(fnm, bnm);
-	strcat(fnm, suffix);
+	strcat(fnm, suffix1);
 
-	if (strcmp(suffix, ".drv") == 0)
+	if (strcmp(suffix1, ".drv") == 0)
 	{	if (!hasdrv)
 		{	mkfo(fnm);
 			fdrv = fo;

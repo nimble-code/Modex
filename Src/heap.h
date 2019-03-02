@@ -10,12 +10,12 @@
 
 /* Original version by Shawn Flisakowski, Apr 27, 1994 */
 
+#ifndef    HEAP_H
+#define    HEAP_H
+
 #ifndef max
 #define max(a,b)	((a)>=(b)?(a):(b))
 #endif
-
-#ifndef    HEAP_H
-#define    HEAP_H
 
 #include "utype.h"
 

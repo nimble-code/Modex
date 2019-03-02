@@ -180,6 +180,7 @@ static void do_externals(FILE *);
 static int precomputable(treenode *);
 extern char *toksym(int tok, int white);
 extern void find_typedefs(scopetab_t *, FILE *);
+extern void put_structs(scopetab_t *, FILE *);
 
 #if 0
 extern void debug_node(treenode *, int, char *);
@@ -838,15 +839,13 @@ void
 add_full_global(char *s, char *t, int derived, int ln)
 {	Fcts *g;
 	char *z;
-	int cnt = 0;
+	int cntr = 0;
 
 	if (strlen(s) == 0
 	||  strlen(t) == 0)
 		return;
 
-if (0)
-	printf("addfullglobal <%s> <%s> derived %d, ln %d\n",
-		s, t, derived, ln);
+if (0)	printf("addfullglobal <%s> <%s> derived %d, ln %d\n", s, t, derived, ln);
 
 tryagain:
 	for (g = modex_globals; g; g = g->nxt)
@@ -877,10 +876,10 @@ tryagain:
 				return;
 			}
 		}
-if (0)
-	printf("%s: add_full_global not-found: <%s> <%s> <%d>\n", progname, s, t, cnt);
 
-	if (cnt++ == 0)
+if (0)	printf("%s: add_full_global not-found: <%s> <%s> <%d>\n", progname, s, t, cntr);
+
+	if (cntr++ == 0)
 	{	add_global(s, t, derived, ln);
 		goto tryagain;
 	}
@@ -1064,7 +1063,7 @@ void
 add_full_local(char *s, char *t, char *r, int derived, int ln)
 {	Fcts *g;
 	char *z;
-	char cnt = 0;
+	char cntr = 0;
 
 	if (strlen(s) == 0
 	||  strlen(t) == 0
@@ -1119,7 +1118,7 @@ if (0)			fprintf(stderr, "consider add_full_local <s=%s t=%s r=%s> g->full=%s g-
 
 if (debug)		fprintf(stderr, "%s: add_full_local not-found: %s %s %s\n", progname, s, t, r);
 
-	if (++cnt == 1)
+	if (++cntr == 1)
 	{	add_local(s, t, r, derived, ln, 10);
 		goto tryagain;
 	}
@@ -1514,7 +1513,7 @@ if (debug_io) fprintf(stderr, ":: open %s -> %p\n", globfilename, fd);
 	}
 
 	if (that && !nostructs)	/* import global structure declarations */
-	{	extern void put_structs(scopetab_t *, FILE *);
+	{
 		if (lastcall)				/* new 2.8 */
 		{	find_typedefs(that, fd);	/* new 2.6 */
 			put_structs(that, fd);
@@ -1582,14 +1581,14 @@ new_globchan(char *s)
 void
 ini_formals(void)
 {	Fcts *g;
-	int cnt = 0;
+	int cntr = 0;
 	char buf0[1024];	/* build up a type decl for param chan */
 	char buf1[1024];
 
 	for (g = modex_locals; g; g = g->nxt)
 	{	if (strcmp(g->tg, fct_name) == 0
 		&&  g->fc == 2)
-		{	cnt++;
+		{	cntr++;
 			if (0) fprintf(stderr, "\t%s\thas formal param: %s %s\n",
 				fct_name, g->dt, g->full?g->full:g->nm);
 	}	}
@@ -1648,17 +1647,17 @@ ini_formals(void)
 	sprintf(buf1, "exc_cll_p_%s?eval(lck_id);\n", fct_name);
 	vis_direct(buf1);
 
-	for (g = modex_locals, cnt = 0; g; g = g->nxt)
+	for (g = modex_locals, cntr = 0; g; g = g->nxt)
 		if (strcmp(g->tg, fct_name) == 0
 		&&  g->fc == 2)
-			cnt++;
+			cntr++;
 	if (vis && extended)
 	for (g = modex_locals; g; g = g->nxt)
 		if (strcmp(g->tg, fct_name) == 0
 		&&  g->fc == 2)
 		{	sprintf(buf1, "\tc_code { Pp_%s->%s = ", g->tg, g->nm);
 			vis_direct(buf1);
-			sprintf(buf1, "now.par%d_%s; };\n", --cnt, g->tg);
+			sprintf(buf1, "now.par%d_%s; };\n", --cntr, g->tg);
 			vis_direct(buf1);
 
 			/* add and import global now.par%d_%s: */
@@ -1668,7 +1667,7 @@ ini_formals(void)
 			{	continue;
 			}
 
-			sprintf(buf1, "par%d_%s", cnt, g->tg);
+			sprintf(buf1, "par%d_%s", cntr, g->tg);
 			add_global(g->dt, buf1, 1, 0);	/* par */
 			add_imported(buf1, "Global", 1);
 			if (g->full)
@@ -2329,9 +2328,9 @@ void
 trav_lut(FILE *lf, char *zz)
 {	Cache *c, *x;
 	char ubuf[64];
-	int cnt, printline;
+	int cntr, printline;
 
-	cnt = 0;
+	cntr = 0;
 	x = comms;
 
 	if (FreshLut && nblanks == 0)
@@ -2342,7 +2341,7 @@ trav_lut(FILE *lf, char *zz)
 	{	if (c->level > 1)	/* 2 and up not visible */
 			continue;
 
-		while (x && cnt >= (int) x->hit)
+		while (x && cntr >= (int) x->hit)
 		{	printline = 0;
 			if (strlen(x->s) > 0)
 				printline = 1;
@@ -2353,7 +2352,7 @@ trav_lut(FILE *lf, char *zz)
 				fprintf(lf, "%s\n", x->s); /* user-defined comments */
 
 			x = x->nxt;
-			cnt++;
+			cntr++;
 		}
 		if (c->printed == 0
 		&& (!zz
@@ -2381,7 +2380,7 @@ trav_lut(FILE *lf, char *zz)
 			handle_special(lf, c->t, ubuf);
 			nblanks = 0;
 		}
-		cnt++;
+		cntr++;
 	}
 }
 
@@ -6059,17 +6058,17 @@ ax_doprops(FILE *fd, scopetab_t *that)
 }
 
 void
-x_hashtab(hashtab_t *that, FILE *fp)
+x_hashtab(hashtab_t *that, FILE *fpp)
 {	symentry_t *list;
 	int j;
 
 	for (j = 0; j < that->tsize; j++)
 	for (list = that->tab[j]; list; list = list->next)
-		x_frag(list->node, fp);
+		x_frag(list->node, fpp);
 }
 
 void
-x_scopetab(scopetab_t *that, FILE *fp, char *want)
+x_scopetab(scopetab_t *that, FILE *fpp, char *want)
 {	scopetab_t *z;
 	int j;
 
@@ -6078,10 +6077,10 @@ x_scopetab(scopetab_t *that, FILE *fp, char *want)
 		if (z->owner && strcmp(z->owner, "-") != 0
 		&&  z->owner_t == TN_FUNC_DEF
 		&&  strcmp(z->owner, want) == 0)
-		{	x_hashtab(that->htab, fp);
+		{	x_hashtab(that->htab, fpp);
 			break;
 		}
 
 	for (j=0; j < that->nchild; j++)
-		x_scopetab(that->children[j], fp, want);
+		x_scopetab(that->children[j], fpp, want);
 }

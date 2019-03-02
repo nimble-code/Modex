@@ -8,6 +8,9 @@
 /* Software written by Gerard J. Holzmann based on the public domain      */
 /* ANSI-C parser Ctree Version 0.14 from Shaun Flisakowski                */
 
+#ifndef DFLOW
+#define DFLOW
+
 typedef struct SymList	SymList;
 typedef struct DefUse	DefUse;
 typedef struct DuG	DuG;
@@ -59,3 +62,5 @@ struct DuGP {
 #define USEbeforedef	(1<<12)		/* 4096 */
 #define PARAM		(1<<13)		/* 8192 */
 #define ANY		((1<<14)-1)
+
+#endif
