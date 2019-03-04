@@ -38,7 +38,7 @@
 char	o_base[512], cur_in[512];
 char	*suffix = "nlut", *progname = "modex";
 char	*want = "main";
-char	*wantpre, *lut = "none.lut", *ulut;
+char	*wantpre, *lutt = "none.lut", *ulut;
 char	*wanttype = "active proctype";
 char	*modelname = "_modex_";
 char	*lnkage_info;
@@ -69,7 +69,7 @@ int	maxdepth = 10000;
 int	memlim   = 15000;
 int	vectorsz = 1024;
 int	loops, np_loops, noend, noassert;
-int	shortest, exhaustive, bfs, bfs_par;
+int	shortest, exhaustive, bfsx, bfs_par;
 int	add_printfs;
 int	debug_io = 0;
 
@@ -712,7 +712,7 @@ no_explicits(void)
 struct {
 	char *descr; int *val;
 } params[] = {
-	{ "bfs:",	&bfs },
+	{ "bfs:",	&bfsx },
 	{ "bfs_par:",	&bfs_par },
 	{ "exhaustive:", &exhaustive },
 	{ "loops:",	&loops },
@@ -790,7 +790,7 @@ if (debug_io) fprintf(stderr, "Open %s -> %p\n", "_modex_.run", fd);
 
 	if (bfs_par)
 	{	strcat(buf, "-DBFS_PAR ");
-	} else if (bfs)
+	} else if (bfsx)
 	{	strcat(buf, "-DBFS ");
 	}
 
@@ -799,14 +799,14 @@ if (debug_io) fprintf(stderr, "Open %s -> %p\n", "_modex_.run", fd);
 	{	/* strcat(buf, "-DSAFETY "); */
 		/* misses presence of ltl formula */
 	} else if (np_loops)
-	{	if (bfs_par || bfs)
+	{	if (bfs_par || bfsx)
 		{	fprintf(stderr, "np_loops disabled by bfs%s\n", (bfs_par)?"_par":"");
 		} else
 		{	strcat(buf, "-DNP ");
 	}	}
 
 	/* shortest */
-	if (shortest && !bfs && !bfs_par)
+	if (shortest && !bfsx && !bfs_par)
 	{	strcat(buf, "-DREACH ");
 	}
 
@@ -870,7 +870,7 @@ if (debug_io) fprintf(stderr, "Open %s -> %p\n", "_modex_.run", fd);
 		buf, lnkage_info?lnkage_info:"");
 	fprintf(fd, "then\n\t");
 
-	if (bfs || bfs_par)
+	if (bfsx || bfs_par)
 	{	sprintf(buf, "./pan -n ");
 	} else
 	{	sprintf(buf, "./pan $r_flags -n -m%d ", maxdepth);
@@ -897,7 +897,7 @@ if (debug_io) fprintf(stderr, "Open %s -> %p\n", "_modex_.run", fd);
 		strcat(buf, "-E ");
 	if (noassert)
 		strcat(buf, "-A ");
-	if (shortest && !bfs && !bfs_par)
+	if (shortest && !bfsx && !bfs_par)
 		strcat(buf, "-i ");
 	if (strlen(runtime) > 0)	/* can override builtin options */
 		strcat(buf, runtime);
@@ -1334,7 +1334,7 @@ if (debug_io) fprintf(stderr, "Open %s -> %p\n", file_name, fd);
 		{	if (0) fprintf(stderr, "Act %d %d -- %s\n", extended, flike, want);
 			if (contxt)
 			save_fcts(contxt->syms->root, stdout);
-			modex_tree(parse_tree, lut);	/* xtract.c */
+			modex_tree(parse_tree, lutt);	/* xtract.c */
 
 			// call do_globals here to avoid losing the info
 			// if a different file is parsed next

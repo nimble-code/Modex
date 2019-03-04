@@ -2064,7 +2064,7 @@ get_lut(char *o_base, char *lut)
 {	FILE *lf;
 	char buf[2048], *p, *q, *r;
 	char nbuf[2048];
-	int cnt=0;
+	int cntr=0;
 
 // printf("GET LUT '%s'\n", lut?lut:"");
 
@@ -2107,7 +2107,7 @@ if (debug_io) fprintf(stderr, "open lut -> %p\n", lf);
 			read_more(lf, buf);
 
 		if (buf[0] == '#' || !strchr(buf, '\t'))
-		{	add_comment(cnt++, buf);
+		{	add_comment(cntr++, buf);
 			continue;
 		}
 
@@ -2258,7 +2258,7 @@ if (0) fprintf(stderr, "B%d %s\n", saw_import, wanttype);
 		p = nextarg(buf);	/* regular mapping src -> dst */
 		if (*p != '\0')
 		{	look_lut(buf, p, 0);	/* store it */
-			cnt++;
+			cntr++;
 		}
 	}
 if (debug_io) fprintf(stderr, "close w %p\n", lf);
@@ -5723,7 +5723,7 @@ modex_for(for_node *forn, int tabs)
 	}
 }
 
-int cnt;
+int count;
 
 static void
 modex_any(treenode *child, int tabs)
@@ -5742,9 +5742,9 @@ if (0) printf("modex_any %d (%d = %s) %s, %s\n",
 
 	switch (child->hdr.which){
 	case NODE_T:
-if (0) { printf("%d	>%d>%s>\n", cnt++, vis, OutBuf); fflush(stdout); }
+if (0) { printf("%d	>%d>%s>\n", count++, vis, OutBuf); fflush(stdout); }
 		modex_node(child, tabs);
-if (0) { printf("%d	<%d<%s<\n", --cnt, vis, OutBuf); fflush(stdout); }
+if (0) { printf("%d	<%d<%s<\n", --count, vis, OutBuf); fflush(stdout); }
 		break;
 	case LEAF_T:
 		modex_leaf((leafnode *) child, tabs);
