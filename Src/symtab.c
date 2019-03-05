@@ -53,7 +53,7 @@ static hashtab_t *freehtab;
 static scopetab_t *freestab;
 static symtab_t *freesymt;
 
-int vis;
+int visu;
 
 static char *
 not_malloc(uint n)
@@ -506,9 +506,9 @@ same:			printf("%s:%d: (scopetab %p symentry %p)", se->fn, se->ln, st, se);
 		return 1;
 
 	printf("\n===couldn't find it:===\n");
-	vis = 1;
+	visu = 1;
 	show_scopetab(st, 0, stdout);
-	vis = 0;
+	visu = 0;
 	printf("===\n\t");
 
 	return 0;
@@ -816,7 +816,7 @@ st_exit_scope(symtab_t *that)
 void
 show_symtab(symtab_t *that, FILE *fp)
 {
-	vis = 1;
+	visu = 1;
 	show_scopetab(that->root, 0, fp);
 }
 

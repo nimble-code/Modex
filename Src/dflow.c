@@ -17,7 +17,7 @@
 #include "symtab.h"
 
 extern int	Verbose, allprocs, preview;
-extern int	vis, show_funcs;
+extern int	visu, show_funcs;
 extern char	*want, *progname;
 
        void	bugger(char *, treenode *, int);
@@ -489,7 +489,7 @@ static void
 add_fbase(int ln, char *s)
 {	Fbase *f, *g;
 
-	if (!vis && !show_funcs) return;
+	if (!visu && !show_funcs) return;
 
 	if (!fbase)
 		set_fbase(0, want);
@@ -815,7 +815,7 @@ go4it:
 
 			if (RealDecls
 			&& (allprocs || strcmp(Fct_name, want) == 0))
-			{	if (vis || show_funcs)
+			{	if (visu || show_funcs)
 					set_fbase(child->hdr.line, Fct_name);
 				if (0) fprintf(stdout, "%3d: %s\n",
 					child->hdr.line, Fct_name);

@@ -153,7 +153,7 @@ static char Ldername[512];
 static int with_decorations;
 static int ax_prop_nr = 0;
 
-extern int vis, show_funcs, add_printfs;
+extern int visu, show_funcs, add_printfs;
 
 extern char cur_in[];
 extern char *VERSION;
@@ -245,10 +245,10 @@ x_stmnt(treenode *n)	/* service routine for lts.c */
 
 	fp = 0;
 	do_level = 0;
-	vis = 1;
+	visu = 1;
 	OutBuf[0] = '\0';
 	modex_recur(n);
-	vis = 0;
+	visu = 0;
 	for (p = OutBuf; *p != '\0'; p++)
 		if (*p == '"') *p = '\'';
 
@@ -268,10 +268,10 @@ nx_stmnt(treenode *n)
 
 	do_level = 0;
 
-	vis = 1;
+	visu = 1;
 	OutBuf[0] = '\0';
 	modex_recur(n);
-	vis = 0;
+	visu = 0;
 
 	strcpy(fct_name, "--");
 	IntBuf[0] = '\0';
@@ -346,7 +346,7 @@ handle_special(FILE *lf, char *s, char *last)
 void
 vis_direct(char *s)	/* the gateway for generated model code */
 {
-	if (vis
+	if (visu
 	&& fp
 	&& s
 	&& !globals_only
@@ -943,7 +943,7 @@ array_bound(treenode *bnm, treenode *indx)
 {	int ov = with_decorations;
 	char *z;
 
-	if (!vis) return;
+	if (!visu) return;
 
 	with_decorations = 0;
 	strcpy(dername, "");
@@ -1608,7 +1608,7 @@ ini_formals(void)
 	{	vis_direct("atomic { /* function like */\n");
 	}
 
-	if (vis && extended)
+	if (visu && extended)
 	{	sprintf(buf0, "chan req_cll_p_%s = [1] of { pid };", fct_name);
 		new_globchan(buf0);
 		sprintf(buf0, "chan exc_cll_p_%s = [0] of { pid };", fct_name);
@@ -1651,7 +1651,7 @@ ini_formals(void)
 		if (strcmp(g->tg, fct_name) == 0
 		&&  g->fc == 2)
 			cntr++;
-	if (vis && extended)
+	if (visu && extended)
 	for (g = modex_locals; g; g = g->nxt)
 		if (strcmp(g->tg, fct_name) == 0
 		&&  g->fc == 2)
@@ -1867,7 +1867,7 @@ shortcut:
 
 done:
 #if 0
-	if (vis && check_type && ret_val)
+	if (visu && check_type && ret_val)
 	{	if (f				/* was missing, found by uno 10/18/01 */
 		&&  strcmp(f->dt, "int") != 0
 		&&  strcmp(f->dt, "int ") != 0
@@ -2622,7 +2622,7 @@ vis_lookup(treenode *n)
 
 	extra_comment = 0;
 
-	if (!vis
+	if (!visu
 	||  strlen(OutBuf) == 0)
 		return p;
 
@@ -2768,9 +2768,9 @@ vis_flush(treenode *n)
 {	char *w1, *w2, *p, *rd, *z;
 	int realprint;
 
-//fprintf(fp, " <<<VIS_FLUSH %d %d '%s'>>> ", vis, ByPass, OutBuf);
+//fprintf(fp, " <<<VIS_FLUSH %d %d '%s'>>> ", visu, ByPass, OutBuf);
 
-	if (!vis
+	if (!visu
 	||  strlen(OutBuf) == 0)
 	{	goto done;
 	}
@@ -2896,7 +2896,7 @@ void
 vis_print_d(int d)
 {	char nw[64];
 
-	if (!vis) return;
+	if (!visu) return;
 
 	sprintf(nw, "%d", d);
 	strcat(OutBuf, nw);
@@ -2906,7 +2906,7 @@ void
 vis_print_g(double d)
 {	char nw[64];
 
-	if (!vis) return;
+	if (!visu) return;
 
 	sprintf(nw, "%g", d);
 	strcat(OutBuf, nw);
@@ -2916,7 +2916,7 @@ void
 vis_print(char *nw)
 {	char w0[1024], *w1, *w2;
 
-	if (!vis || !nw) return;
+	if (!visu || !nw) return;
 
 	/* avoid modifying the argument, because
 	   it could be a fixed string, like "\n"
@@ -2939,7 +2939,7 @@ void
 vis_indent(int tb, char *s)	/* not via lookup table */
 {	int j;
 
-	if (!vis) return;
+	if (!visu) return;
 
 	for (j = tb-taboffset; j > 0; j--)
 		vis_direct("  ");
@@ -3040,7 +3040,7 @@ void
 fputs_metachr(char c, int in_str)
 {	char cstr[2];
 	
-	if (vis)
+	if (visu)
 	switch (c) {
 	case '\'': if (in_str) vis_print("'"); else vis_print("\\'"); break;
 	case '"':  if (in_str) vis_print("\\\""); else vis_print("\""); break;
@@ -3063,7 +3063,7 @@ fputs_metachr(char c, int in_str)
 void
 fputs_metastr(char *str)
 {
-	if (!vis) return;
+	if (!visu) return;
 
 	while (*str)
 	{	fputs_metachr(*str,1);
@@ -3377,16 +3377,16 @@ if (0)			fprintf(stderr, "%3d: +decl: %s %s %s (%s) ..%d.. ",
 
 			dotree(n->lnode, depth+1, nf);	/* the name */
 			if (with_decorations)
-			{ int ovis = vis;
+			{ int ovis = visu;
 				strcat(dername, " = ");
-				vis = 1;
+				visu = 1;
 				strcpy(Rem2, OutBuf);
 				vis_start();	/* loss of D: type prefix */
 				modex_recur(n->rnode);
 				strcat(dername, OutBuf);
 				vis_start();
 				strcpy(OutBuf, Rem2);
-				vis = ovis;
+				visu = ovis;
 
 				if (strcmp(derscope, "Global") == 0)
 				{	add_full_global(dertype, dername, 1, n->hdr.line);
@@ -3514,7 +3514,7 @@ same:				strcat(dername, "(");
 		case  TN_INDEX:
 			return;
 		default:
-			if (vis
+			if (visu
 			&& !preview
 			&&  strcmp(fct_name, "") != 0
 			&&  (lastln != n->hdr.line
@@ -3694,7 +3694,7 @@ static int par_cnt = 0;
 static void
 fct_params(treenode *fct, treenode *pars)
 {
-	if (!fct || !pars || !vis) return;
+	if (!fct || !pars || !visu) return;
 
 	switch (pars->hdr.which) {
 	case NODE_T:
@@ -4145,7 +4145,7 @@ if (0)
 		name_of_node(root->hdr.type),
 		OutBuf);
 
-	if (debug && vis)
+	if (debug && visu)
 	{	printf(" {%s} ", name_of_node(root->hdr.type));
 	}
 	switch (root->hdr.which) {
@@ -4197,13 +4197,13 @@ if (0) fprintf(fp, "Done: <<%s>>\n", OutBuf);
 		case TN_TYPE:
 			if (leaf->hdr.tok != TYPEDEF_NAME)
 			{	vis_print(toksym(leaf->hdr.tok,1));
-if (0 && vis) printf("%s:%3d: saw TN_TYPE %s\n",
+if (0 && visu) printf("%s:%3d: saw TN_TYPE %s\n",
 	leaf->hdr.fnm, leaf->hdr.line,
 	toksym(leaf->hdr.tok,1));
 			} else
 			{	vis_print(leaf->data.sval->str);
 				vis_print(" ");
-if (0 && vis) printf("%s:%3d: saw TYPEDEF_NAME %s\n",
+if (0 && visu) printf("%s:%3d: saw TYPEDEF_NAME %s\n",
 	leaf->hdr.fnm, leaf->hdr.line,
 	leaf->data.sval->str);
 			}
@@ -4253,7 +4253,7 @@ if (0) fprintf(fp, "	%s: recur: node %s <%s>%d\n",
 			break;
 		case TN_FUNC_CALL:
 			storefname(root);
-			if (vis && in_pars == 0)
+			if (visu && in_pars == 0)
 			{
 				strcpy(OrigBuf, OutBuf);
 			}
@@ -4445,7 +4445,7 @@ nomore:					/* done */;
 				{	replace_pthread_join();
 				}
 
-				if (vis && !suppress)
+				if (visu && !suppress)
 				{	char my_fname[512];
 					strcpy(my_fname, "");
 					bugger(my_fname, root->lnode, 0);
@@ -4536,9 +4536,9 @@ same:				vis_print("(");
 			}
 			break;
 		case TN_SELECT:
-			if (debug && vis) printf(" <<tns-l>> ");
+			if (debug && visu) printf(" <<tns-l>> ");
 			modex_recur(root->lnode);
-			if (debug && vis) printf(" <<tns-r>> ");
+			if (debug && visu) printf(" <<tns-r>> ");
 			if (root->hdr.tok == ARROW)
 			{	vis_print("->");
 				precondition(root->lnode);	/* (x->) */
@@ -4546,7 +4546,7 @@ same:				vis_print("(");
 			{	vis_print(".");
 			}
 			modex_recur(root->rnode);
-			if (debug && vis) printf(" <<tns>> ");
+			if (debug && visu) printf(" <<tns>> ");
 			break;
 		case TN_INDEX:
 			array_bound(root->lnode, root->rnode);
@@ -4710,14 +4710,14 @@ same:				vis_print("(");
 
 		case TN_WHILE:
 		case TN_DOWHILE:
-			if (!vis) break;
+			if (!visu) break;
 			if (!preview)
 				printf("%s: unexpected - call from outside\n", progname);
 			modex_recur(root->lnode);
 			break;
 
 		default:
-			if (vis && !preview)
+			if (visu && !preview)
 			fprintf(stderr, "%s: recur: line %3d unexpected node %s\n",
 				progname, root->hdr.line, name_of_node(root->hdr.type));
 			break;
@@ -4733,7 +4733,7 @@ same:				vis_print("(");
 			name_of_nodetype(root->hdr.which));
 		break;
 	}
-	if (debug && vis) printf(" <<UP>> ");
+	if (debug && visu) printf(" <<UP>> ");
 }
 
 void
@@ -4783,7 +4783,7 @@ x_frag(treenode *root, FILE *fd)
 void
 modex_leaf(leafnode *leaf, int tabs)
 {
-	if (leaf == NULL || !vis) return;
+	if (leaf == NULL || !visu) return;
 
 	/* normally not called */
 	linenr = leaf->hdr.line;
@@ -5036,7 +5036,7 @@ void
 doreturn(int fromwhere)
 {	char sbuf[512];
 
-	if (!vis) return;
+	if (!visu) return;
 
 	do_locals(1);	/* write local decls of last procedure */
 
@@ -5099,7 +5099,7 @@ handle_fct(treenode *node, int tabs)
 		return;
 
 	if (allprocs)
-	{	vis = 1;			// no output before first procedure
+	{	visu = 1;			// no output before first procedure
 		if (strchr(wanttype, '[')	// more than one instantiation
 		&&  extended
 		&&  (strcmp(nmestr(((leafnode *)(node->lnode))->data.sval), "main") == 0
@@ -5131,13 +5131,13 @@ handle_fct(treenode *node, int tabs)
 
 		nreturns = 0;
 	} else
-	{	vis_print("FctDecl:\n");	/* vis is 0 here */
+	{	vis_print("FctDecl:\n");	/* visu is 0 here */
 
 		if (node->lnode->hdr.which == LEAF_T
 		&&  node->lnode->hdr.type == TN_IDENT	/* fct-name */
 		&& !strcmp(want, nmestr(((leafnode *)(node->lnode))->data.sval))
 		&&  strlen(want) == strlen(nmestr(((leafnode *)(node->lnode))->data.sval)))
-		{	vis = 1;
+		{	visu = 1;
 			taboffset = tabs-1;
 			strcpy(fct_name, nmestr(((leafnode *)(node->lnode))->data.sval));
 			if (strcmp(wanttype, "body") != 0)
@@ -5148,12 +5148,12 @@ handle_fct(treenode *node, int tabs)
 		} else
 		{	doreturn(2);	/* needed? */
 			taboffset = 0;
-			if (!allprocs) vis = 0;
+			if (!allprocs) visu = 0;
 		}
 	}
 	strcpy(fct_name, nmestr(((leafnode *)(node->lnode))->data.sval));
 	strcpy(derproc, fct_name);
-	if (vis && show_funcs)
+	if (visu && show_funcs)
 		set_fbase(node->hdr.line, fct_name);
 }
 
@@ -5161,7 +5161,7 @@ static int Cunique = 0;
 
 static void
 modex_node(treenode *node, int tabs)
-{	int ovis = vis, osaw, xtmp;
+{	int ovis = visu, osaw, xtmp;
 	char jumploc[32];
 
 	if (!node)
@@ -5404,7 +5404,7 @@ moveon:		modex_any(node->rnode,tabs);
 		is_label++;
 		modex_recur(node->lnode);	/* 4 - generate caselabel */
 		is_label--;
-		if (vis)
+		if (visu)
 		{	if (strncmp(OutBuf, "case", strlen("case")) == 0
 			||  strncmp(OutBuf, "default", strlen("default")) == 0)
 			{	if (sw_first > 0)
@@ -5493,14 +5493,14 @@ moveon:		modex_any(node->rnode,tabs);
 
 	if (node->lnode)
 	{	if (!ovis) doreturn(4);
-		vis = ovis;
+		visu = ovis;
 	}
 
 	modex_any(node->lnode, tabs);
 
 	if (node->rnode)
 	{	if (!ovis) doreturn(5);
-		vis = ovis;
+		visu = ovis;
 	}
 	modex_any(node->rnode, tabs);
 }
@@ -5569,7 +5569,7 @@ modex_if(if_node *ifn, int tabs)
 	int xtmp;
 	char *efn = NULL;
 
-	if (vis != 0 && ((efn = has_instrumented(ifn->cond, "")) != NULL))
+	if (visu != 0 && ((efn = has_instrumented(ifn->cond, "")) != NULL))
 	{	char MBuf[BigEnough];
 
 		// move instrumented function call out of conditional test
@@ -5742,9 +5742,9 @@ if (0) printf("modex_any %d (%d = %s) %s, %s\n",
 
 	switch (child->hdr.which){
 	case NODE_T:
-if (0) { printf("%d	>%d>%s>\n", count++, vis, OutBuf); fflush(stdout); }
+if (0) { printf("%d	>%d>%s>\n", count++, visu, OutBuf); fflush(stdout); }
 		modex_node(child, tabs);
-if (0) { printf("%d	<%d<%s<\n", --count, vis, OutBuf); fflush(stdout); }
+if (0) { printf("%d	<%d<%s<\n", --count, visu, OutBuf); fflush(stdout); }
 		break;
 	case LEAF_T:
 		modex_leaf((leafnode *) child, tabs);
@@ -5778,7 +5778,7 @@ modex_reset(void)
 	debug = lastln = lastpb = pending = 0;
 	ishidden = wasfalse = wastrue = waselse = nreturns = 0;
 	linenr = do_level = sw_level = sw_first = 0;
-	do_uniq = o_cnt = vis = 0;
+	do_uniq = o_cnt = visu = 0;
 	nblanks = with_decorations = 0;
 	cache = comms = commstail = (Cache *) 0;
 	fcts = maps = incls = (Fcts *) 0;
