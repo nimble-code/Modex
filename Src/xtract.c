@@ -100,7 +100,7 @@ static int	FreshLut = 0, needreturn = 0, sawreturn = 0;
 static int	ByPass = 0, PosElse = 0;
 static char	fct_name[1024] = ":global:";
 static char	fct_type[512] = "long";
-static char	tbuf[BigEnough];
+static char	tbuf[BigEnough+128];
 static char	Bounds[BigEnough];
 static int	extra_comment;
 static int	owf, owt, owe, owh;
@@ -439,7 +439,7 @@ new_decor(char *p, int n)
 char *
 rm_decor(char *R)	/* strip "P...->"  and "now." decorations */
 {	char *z, *y, *r;
-	char patt[512];
+	char patt[2048];
 	Decor *d;
 
 	sprintf(patt, "Pp_%s->", fct_name);
@@ -1582,8 +1582,8 @@ void
 ini_formals(void)
 {	Fcts *g;
 	int cntr = 0;
-	char buf0[1024];	/* build up a type decl for param chan */
-	char buf1[1024];
+	char buf0[2048];	/* build up a type decl for param chan */
+	char buf1[4096];
 
 	for (g = modex_locals; g; g = g->nxt)
 	{	if (strcmp(g->tg, fct_name) == 0
@@ -2531,7 +2531,7 @@ do_ccode(int lno)
 
 		if (strlen(OutBuf) > strlen("R: return"))
 		{	if (extended)
-			{	char *z, more[1024];
+			{	char *z, more[4096];
 
 				for (z = &OutBuf[strlen("R: return")]; *z; z++)
 				{	if (*z == ' ' || *z == '\t')
@@ -3562,7 +3562,7 @@ derive_type(char *s, treenode *n)
 void
 do_prefix(leafnode *n)
 {	Fcts *g;
-	static char buf[1024];
+	static char buf[2048];
 	char *s;
 
 	s = n->data.sval->str;
@@ -5034,7 +5034,7 @@ more:
 
 void
 doreturn(int fromwhere)
-{	char sbuf[512];
+{	char sbuf[2048];
 
 	if (!visu) return;
 
