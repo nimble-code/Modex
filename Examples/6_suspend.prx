@@ -9,8 +9,8 @@ printf(...			hide
 thr_suspend(ctid)		Suspended = 1
 thr_continue(ctid)		Suspended = 0
 
-mutex_lock(&(count_lock))	atomic { count_lock == 0 -> count_lock = 1 }
-mutex_unlock(&(count_lock))	count_lock = 0
+mutex_lock(...			atomic { count_lock == 0 -> count_lock = 1 }
+mutex_unlock(...		count_lock = 0
 
 %P
 	bool Suspended;
