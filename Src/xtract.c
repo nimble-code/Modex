@@ -4344,7 +4344,7 @@ if (0) fprintf(fp, "	%s: recur: node %s <%s>%d\n",
 				{	char *xx = strstr(OutBuf, "pthread_self(");
 					if (xx)
 					{	special_case = 2;
-						strcpy(xx, "((int)(((P0 *)this)->_pid))");
+						strcpy(xx, "((int)(((P0 *)_this)->_pid))");
 					}
 				} else
 				{
