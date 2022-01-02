@@ -1187,7 +1187,7 @@ newer(char *f1, char *f2)
 
 void
 process_input(char *f, int phase2)
-{	FILE *fp;
+{	FILE *fp = NULL;
 	char	cpp_file[512], *z, m[64];
 
 	if (f && Verbose_cmds)
