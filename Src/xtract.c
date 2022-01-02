@@ -3789,12 +3789,19 @@ set_join_id(void)	// from first '(' til first ',' in OutBuf
 }
 
 void
-set_create_id(void)	// from the 1st '&(' to the 1st '),' in OutBuf
+set_create_id(void)	// from the 1st '&(' to the 1st '),' in OutBuf or from the 1st '(' to the 1st ',' in OutBuf
 {	char *s, *e;
 
 	join_id = 0;
 	s = strchr(OutBuf, '&');
-	e = strchr(s+1, ')');
+	if (s != NULL)
+	{	e = strchr(s+1, ')');
+	}
+	else
+	{
+		s = strchr(OutBuf, '(')-1;
+		e = strchr(s+1, ',');
+	}
 	if (!e || e-s <= 1) { return; }
 
 	join_id = (char *) e_malloc((e-s) * sizeof(char));
