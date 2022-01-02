@@ -3794,6 +3794,7 @@ set_create_id(void)	// from the 1st '&(' to the 1st '),' in OutBuf
 
 	join_id = 0;
 	s = strchr(OutBuf, '&');
+	if (!s) { return; }
 	e = strchr(s+1, ')');
 	if (!e || e-s <= 1) { return; }
 
