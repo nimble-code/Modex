@@ -61,7 +61,7 @@ gram.o: gram.c
 gram.c gram.h:	gram.y tree.h symtab.h globals.h
 	bison -v -d gram.y
 	mv gram.tab.c gram.c
-	mv gram.tab.h gram.h
+	cp gram.tab.h gram.h
 
 clean:
 	rm -f gram.[ch] *.o lexer.c modex gram.output
